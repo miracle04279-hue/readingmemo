@@ -220,10 +220,10 @@
     ];
 
     const HIGHLIGHT_COLORS = [
-      { name: '노랑', rgba: 'rgba(255, 235, 110, 0.22)', swatch: '#FFE873' },
-      { name: '연두', rgba: 'rgba(150, 245, 158, 0.22)', swatch: '#9BF2A2' },
-      { name: '분홍', rgba: 'rgba(255, 165, 195, 0.22)', swatch: '#FFA6C1' },
-      { name: '하늘', rgba: 'rgba(145, 208, 255, 0.22)', swatch: '#94CEFF' },
+      { name: '노랑', hex: '#FFF28A', swatch: '#FFE873' },
+      { name: '연두', hex: '#B7F5BA', swatch: '#9BF2A2' },
+      { name: '분홍', hex: '#FFB5CE', swatch: '#FFA6C1' },
+      { name: '하늘', hex: '#B5DCFF', swatch: '#94CEFF' },
     ];
 
     const DEFAULT_USERS = [
@@ -768,17 +768,20 @@
             })
             .join('');
 
-          const addBookCardHtml = `
-            <button
-              type="button"
-              data-add-book-for-user="${user.id}"
-              class="aspect-[3/4] w-full rounded-2xl border-2 border-dashed border-amber-900/25 bg-amber-50/60 hover:bg-amber-100/70 flex flex-col items-center justify-center gap-1.5 p-2 text-center transition cursor-pointer min-h-[132px]"
-            >
-              <span class="w-8 h-8 rounded-full bg-accentSoft text-accent flex items-center justify-center text-lg font-bold">+</span>
-              <span class="text-xs font-bold text-ink leading-tight">책 추가</span>
-              <span class="text-[10px] text-muted">${escapeHtml(user.name)} 책장</span>
-            </button>
-          `;
+          const isOwnShelf = user.id === state.activeUserId;
+          const addBookCardHtml = isOwnShelf
+            ? `
+              <button
+                type="button"
+                data-add-book-for-user="${user.id}"
+                class="aspect-[3/4] w-full rounded-2xl border-2 border-dashed border-amber-900/25 bg-amber-50/60 hover:bg-amber-100/70 flex flex-col items-center justify-center gap-1.5 p-2 text-center transition cursor-pointer min-h-[132px]"
+              >
+                <span class="w-8 h-8 rounded-full bg-accentSoft text-accent flex items-center justify-center text-lg font-bold">+</span>
+                <span class="text-xs font-bold text-ink leading-tight">책 추가</span>
+                <span class="text-[10px] text-muted">${escapeHtml(user.name)} 책장</span>
+              </button>
+            `
+            : '';
 
           return `
             <section class="rounded-3xl bg-surface/90 border border-amber-900/10 p-3.5 shadow-2xs space-y-3">
@@ -1332,7 +1335,7 @@
       if (!book) return;
 
       let photoDataUrl = existingEntry ? existingEntry.photoUrl : '';
-      let currentHighlightColor = HIGHLIGHT_COLORS[0].rgba;
+      let currentHighlightColor = HIGHLIGHT_COLORS[0].hex;
       let isDrawing = false;
       let hasBaseImageLoaded = false;
       let baseImageObj = null;
@@ -1343,7 +1346,7 @@
         return `
           <button
             type="button"
-            data-highlight-color="${encodeURIComponent(c.rgba)}"
+            data-highlight-color="${encodeURIComponent(c.hex)}"
             class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
               idx === 0 ? 'border-ink bg-amber-100/80' : 'border-amber-900/15 bg-paper'
             }"
@@ -1431,8 +1434,9 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(baseImageObj, 0, 0, canvas.width, canvas.height);
         if (strokeCanvas) {
-          // 한 스트로크 안에서 겹치더라도 일정한 색감과 투명도를 유지하도록 multiply 합성
+          // 사진 위에 형광펜 마스크를 한 번만 얹어 덧칠/세기와 무관하게 일정한 연한 색감 유지
           ctx.globalCompositeOperation = 'multiply';
+          ctx.globalAlpha = 0.24;
           ctx.drawImage(strokeCanvas, 0, 0, canvas.width, canvas.height);
         }
         ctx.restore();
@@ -1500,14 +1504,14 @@
         if (!hasBaseImageLoaded || !strokeCtx) return;
         isDrawing = true;
         const pt = getCanvasPoint(clientX, clientY);
-        // 한 획 내에서는 불투명 컬러로 그린 뒤 composeHighlighterCanvas에서 일정 알파/multiply로 합쳐 세기 변화 방지
-        const solidColor = currentHighlightColor.replace(/rgba?\(([^,]+),\s*([^,]+),\s*([^,)]+)(?:,[^)]+)?\)/, 'rgb($1, $2, $3)');
+        // strokeCanvas에는 불투명 단색으로 기록한 뒤, composeHighlighterCanvas에서 단일 알파로 합성해 농도 일정화
         strokeCtx.save();
-        strokeCtx.globalAlpha = 0.22;
+        strokeCtx.globalCompositeOperation = 'source-over';
+        strokeCtx.globalAlpha = 1;
         strokeCtx.lineCap = 'round';
         strokeCtx.lineJoin = 'round';
-        strokeCtx.lineWidth = Math.max(10, Math.round(canvas.width * 0.022));
-        strokeCtx.strokeStyle = solidColor;
+        strokeCtx.lineWidth = Math.max(12, Math.round(canvas.width * 0.024));
+        strokeCtx.strokeStyle = currentHighlightColor;
         strokeCtx.beginPath();
         strokeCtx.moveTo(pt.x, pt.y);
         strokeCtx.lineTo(pt.x + 0.1, pt.y);
@@ -1519,13 +1523,13 @@
       function moveStroke(clientX, clientY) {
         if (!isDrawing || !hasBaseImageLoaded || !strokeCtx) return;
         const pt = getCanvasPoint(clientX, clientY);
-        const solidColor = currentHighlightColor.replace(/rgba?\(([^,]+),\s*([^,]+),\s*([^,)]+)(?:,[^)]+)?\)/, 'rgb($1, $2, $3)');
         strokeCtx.save();
-        strokeCtx.globalAlpha = 0.22;
+        strokeCtx.globalCompositeOperation = 'source-over';
+        strokeCtx.globalAlpha = 1;
         strokeCtx.lineCap = 'round';
         strokeCtx.lineJoin = 'round';
-        strokeCtx.lineWidth = Math.max(10, Math.round(canvas.width * 0.022));
-        strokeCtx.strokeStyle = solidColor;
+        strokeCtx.lineWidth = Math.max(12, Math.round(canvas.width * 0.024));
+        strokeCtx.strokeStyle = currentHighlightColor;
         strokeCtx.lineTo(pt.x, pt.y);
         strokeCtx.stroke();
         strokeCtx.restore();
