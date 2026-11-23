@@ -728,41 +728,38 @@
           const booksGridHtml = userBooks
             .map((book) => {
               const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
+              const isOwnBook = book.ownerId === state.activeUserId;
               return `
-                <div class="group relative flex flex-col">
+                <div class="group relative flex flex-col select-none">
                   <button
                     type="button"
                     data-open-book="${book.id}"
-                    class="w-full text-left flex flex-col rounded-2xl overflow-hidden bg-surface border border-amber-900/15 book-spine-edge hover:-translate-y-0.5 transition cursor-pointer"
+                    data-long-press-book="${book.id}"
+                    class="w-full text-left flex flex-col rounded-2xl overflow-hidden bg-surface border border-amber-900/15 book-spine-edge hover:-translate-y-0.5 transition cursor-pointer select-none"
                   >
                     <div class="aspect-[3/4] w-full bg-amber-100/50 relative overflow-hidden flex items-center justify-center">
                       ${
                         book.coverImage
-                          ? `<img src="${book.coverImage}" alt="${escapeHtml(book.title)} 표지" class="w-full h-full object-cover" />`
-                          : `<div class="p-2.5 text-center flex flex-col items-center justify-center gap-1">
+                          ? `<img src="${book.coverImage}" alt="${escapeHtml(book.title)} 표지" class="w-full h-full object-cover pointer-events-none" />`
+                          : `<div class="p-2.5 text-center flex flex-col items-center justify-center gap-1 pointer-events-none">
                                <span class="text-2xl">📖</span>
                                <span class="text-xs font-bold text-ink line-clamp-2 leading-snug">${escapeHtml(book.title)}</span>
                              </div>`
                       }
-                      <span class="absolute bottom-1.5 right-1.5 rounded-full bg-ink/75 text-white text-[10px] font-semibold px-2 py-0.5">
+                      <span class="absolute bottom-1.5 right-1.5 rounded-full bg-ink/75 text-white text-[10px] font-semibold px-2 py-0.5 pointer-events-none">
                         구절 ${entryCount}
                       </span>
                     </div>
-                    <div class="p-2 bg-surface">
+                    <div class="p-2 bg-surface pointer-events-none">
                       <p class="text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
                       <p class="text-[11px] text-muted truncate">${escapeHtml(book.author || '지은이 미상')}</p>
                     </div>
                   </button>
-
-                  <button
-                    type="button"
-                    data-delete-book="${book.id}"
-                    title="책 삭제"
-                    aria-label="${escapeHtml(book.title)} 삭제"
-                    class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-amber-900/20 text-muted hover:text-red-600 hover:border-red-300 shadow-xs flex items-center justify-center text-xs font-bold transition cursor-pointer"
-                  >
-                    ×
-                  </button>
+                  ${
+                    isOwnBook
+                      ? `<span class="sr-only">길게 눌러 삭제 가능</span>`
+                      : ''
+                  }
                 </div>
               `;
             })
@@ -1187,6 +1184,10 @@
     function openDeleteBookModal(bookId) {
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
+      if (book.ownerId !== state.activeUserId) {
+        showToast('현재 기록 중인 사용자 본인의 책장에 있는 책만 삭제할 수 있어요.');
+        return;
+      }
 
       openModal(`
         <div class="space-y-3">
@@ -1203,6 +1204,12 @@
 
       document.getElementById('cancelDeleteBookBtn').addEventListener('click', closeModal);
       document.getElementById('confirmDeleteBookBtn').addEventListener('click', async () => {
+        const currentBook = state.books.find((b) => b.id === bookId);
+        if (!currentBook || currentBook.ownerId !== state.activeUserId) {
+          closeModal();
+          showToast('본인 책장의 책만 삭제할 수 있어요.');
+          return;
+        }
         const relatedEntryIds = state.entries
           .filter((e) => e.bookId === bookId)
           .map((e) => e.id);
@@ -1677,17 +1684,34 @@
     function bindGlobalEvents() {
       const badgeBtn = document.getElementById('activeUserBadgeBtn');
       const dropdown = document.getElementById('activeUserDropdown');
+      let longPressTimer = null;
+      let longPressTriggeredBookId = null;
 
-      badgeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        dropdown.classList.toggle('hidden');
-      });
-
-      document.addEventListener('click', (e) => {
-        if (!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !badgeBtn.contains(e.target)) {
-          dropdown.classList.add('hidden');
+      function clearLongPressTimer() {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
         }
-      });
+      }
+
+      function beginBookLongPress(bookEl, clientX, clientY) {
+        clearLongPressTimer();
+        longPressTriggeredBookId = null;
+        const bookId = bookEl.getAttribute('data-long-press-book');
+        if (!bookId) return;
+        const book = state.books.find((b) => b.id === bookId);
+        if (!book || book.ownerId !== state.activeUserId) return;
+
+        const startX = clientX;
+        const startY = clientY;
+        bookEl.dataset.pressStartX = String(startX);
+        bookEl.dataset.pressStartY = String(startY);
+
+        longPressTimer = setTimeout(() => {
+          longPressTriggeredBookId = bookId;
+          openDeleteBookModal(bookId);
+        }, 600);
+      }
 
       document.getElementById('navHomeBtn').addEventListener('click', () => {
         closeModal();
@@ -1741,17 +1765,13 @@
           return;
         }
 
-        const deleteBookBtn = e.target.closest('[data-delete-book]');
-        if (deleteBookBtn) {
-          e.stopPropagation();
-          const bookId = deleteBookBtn.getAttribute('data-delete-book');
-          openDeleteBookModal(bookId);
-          return;
-        }
-
         const openBookBtn = e.target.closest('[data-open-book]');
         if (openBookBtn) {
           const bookId = openBookBtn.getAttribute('data-open-book');
+          if (longPressTriggeredBookId === bookId) {
+            longPressTriggeredBookId = null;
+            return;
+          }
           state.selectedBookId = bookId;
           state.currentTab = 'home';
           renderApp();
@@ -1760,15 +1780,13 @@
 
         const editCoverBtn = e.target.closest('[data-edit-book-cover]');
         if (editCoverBtn) {
-          const bookId = editCoverBtn.getAttribute('data-edit-book-cover');
-          openEditBookCoverModal(bookId);
+          openEditBookCoverModal(editCoverBtn.getAttribute('data-edit-book-cover'));
           return;
         }
 
         const newEntryBtn = e.target.closest('[data-open-new-entry]');
         if (newEntryBtn) {
-          const bookId = newEntryBtn.getAttribute('data-open-new-entry');
-          openEntryEditorModal(bookId, null);
+          openEntryEditorModal(newEntryBtn.getAttribute('data-open-new-entry'), null);
           return;
         }
 
@@ -1784,10 +1802,62 @@
 
         const deleteEntryBtn = e.target.closest('[data-delete-entry]');
         if (deleteEntryBtn) {
-          const entryId = deleteEntryBtn.getAttribute('data-delete-entry');
-          openDeleteEntryModal(entryId);
+          openDeleteEntryModal(deleteEntryBtn.getAttribute('data-delete-entry'));
           return;
         }
+
+        if (badgeBtn && badgeBtn.contains(e.target)) {
+          dropdown.classList.toggle('hidden');
+        } else if (dropdown && !dropdown.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+
+      document.addEventListener('mousedown', (e) => {
+        const bookEl = e.target.closest('[data-long-press-book]');
+        if (bookEl && e.button === 0) {
+          beginBookLongPress(bookEl, e.clientX, e.clientY);
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!longPressTimer) return;
+        const bookEl = document.querySelector(`[data-long-press-book="${longPressTriggeredBookId || ''}"]`);
+        const sx = Number(bookEl?.dataset.pressStartX ?? e.clientX);
+        const sy = Number(bookEl?.dataset.pressStartY ?? e.clientY);
+        if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) {
+          clearLongPressTimer();
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        clearLongPressTimer();
+      });
+
+      document.addEventListener('touchstart', (e) => {
+        const bookEl = e.target.closest('[data-long-press-book]');
+        if (bookEl && e.touches && e.touches[0]) {
+          beginBookLongPress(bookEl, e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchmove', (e) => {
+        if (!longPressTimer || !e.touches || !e.touches[0]) return;
+        const touch = e.touches[0];
+        const bookEl = document.querySelector(`[data-long-press-book="${longPressTriggeredBookId || ''}"]`);
+        const sx = Number(bookEl?.dataset.pressStartX ?? touch.clientX);
+        const sy = Number(bookEl?.dataset.pressStartY ?? touch.clientY);
+        if (Math.hypot(touch.clientX - sx, touch.clientY - sy) > 12) {
+          clearLongPressTimer();
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchend', () => {
+        clearLongPressTimer();
+      });
+
+      document.addEventListener('touchcancel', () => {
+        clearLongPressTimer();
       });
 
       document.addEventListener('submit', async (e) => {
