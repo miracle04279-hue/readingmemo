@@ -1794,7 +1794,7 @@
         const addBookBtn = e.target.closest('[data-add-book-for-user]');
         if (addBookBtn) {
           const ownerId = addBookBtn.getAttribute('data-add-book-for-user');
-          if (ownerId !== state.activeUserId) {
+          if (!ownerId || ownerId !== state.activeUserId) {
             showToast('현재 기록 중인 사용자 본인의 책장에만 책을 추가할 수 있어요.');
             return;
           }
@@ -1819,7 +1819,7 @@
         if (editCoverBtn) {
           const bookId = editCoverBtn.getAttribute('data-edit-book-cover');
           const book = state.books.find((b) => b.id === bookId);
-          if (!book || book.ownerId !== state.activeUserId) {
+          if (!book || !book.ownerId || book.ownerId !== state.activeUserId) {
             showToast('현재 기록 중인 사용자 본인의 책장에 있는 책만 수정할 수 있어요.');
             return;
           }
@@ -1838,7 +1838,7 @@
           const entryId = editEntryBtn.getAttribute('data-edit-entry');
           const entry = state.entries.find((item) => item.id === entryId);
           if (!entry) return;
-          if (entry.authorId !== state.activeUserId) {
+          if (!entry.authorId || entry.authorId !== state.activeUserId) {
             showToast('본인이 기록한 구절만 수정할 수 있어요.');
             return;
           }
