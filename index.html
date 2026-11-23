@@ -220,10 +220,10 @@
     ];
 
     const HIGHLIGHT_COLORS = [
-      { name: '노랑', rgba: 'rgba(255, 224, 102, 0.22)', swatch: '#FFE066' },
-      { name: '연두', rgba: 'rgba(169, 239, 174, 0.24)', swatch: '#A9EFAE' },
-      { name: '분홍', rgba: 'rgba(255, 179, 198, 0.24)', swatch: '#FFB3C6' },
-      { name: '하늘', rgba: 'rgba(162, 210, 255, 0.24)', swatch: '#A2D2FF' },
+      { name: '노랑', rgba: 'rgba(255, 232, 115, 0.36)', swatch: '#FFE873' },
+      { name: '연두', rgba: 'rgba(155, 242, 162, 0.36)', swatch: '#9BF2A2' },
+      { name: '분홍', rgba: 'rgba(255, 166, 193, 0.36)', swatch: '#FFA6C1' },
+      { name: '하늘', rgba: 'rgba(148, 206, 255, 0.36)', swatch: '#94CEFF' },
     ];
 
     const DEFAULT_USERS = [
@@ -1469,6 +1469,7 @@
         isDrawing = true;
         const pt = getCanvasPoint(clientX, clientY);
         ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.lineWidth = Math.max(10, Math.round(canvas.width * 0.024));
@@ -1484,6 +1485,7 @@
         if (!isDrawing || !hasBaseImageLoaded) return;
         const pt = getCanvasPoint(clientX, clientY);
         ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.lineWidth = Math.max(10, Math.round(canvas.width * 0.024));
@@ -1647,6 +1649,7 @@
       });
 
       document.getElementById('navHomeBtn').addEventListener('click', () => {
+        state.selectedBookId = null;
         state.currentTab = 'home';
         renderApp();
       });
