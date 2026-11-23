@@ -288,6 +288,7 @@
         banner.classList.add('hidden');
       }, 2400);
     }
+
     function openModal(htmlContent, modalSizeClass = 'max-w-md') {
       const backdrop = document.getElementById('modalBackdrop');
       const card = document.getElementById('modalCard');
@@ -716,7 +717,7 @@
 
     /**
      * =========================================================================
-     * 4. 책장 홈 뷰 렌더링 (사용자별 책장 섹션 + 책 추가 + 책 삭제)
+     * 4. 책장 홈 뷰 렌더링 (사용자별 책장 섹션 + 책 추가 + 길게 눌러 책 삭제)
      * =========================================================================
      */
     function renderHomeView(container) {
@@ -817,6 +818,7 @@
      */
     function renderBookDetailView(container, book) {
       const bookEntries = state.entries.filter((e) => e.bookId === book.id);
+      const isOwnBook = book.ownerId === state.activeUserId;
 
       const entriesHtml =
         bookEntries.length === 0
@@ -860,22 +862,28 @@
                         </span>
                         <span class="text-xs text-muted truncate">${escapeHtml(entry.photoDate || '')}</span>
                       </div>
-                      <div class="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          data-edit-entry="${entry.id}"
-                          class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-xs font-semibold text-ink transition cursor-pointer"
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          data-delete-entry="${entry.id}"
-                          class="px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-600 transition cursor-pointer"
-                        >
-                          삭제
-                        </button>
-                      </div>
+                      ${
+                        entry.authorId === state.activeUserId
+                          ? `
+                            <div class="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                data-edit-entry="${entry.id}"
+                                class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-xs font-semibold text-ink transition cursor-pointer"
+                              >
+                                수정
+                              </button>
+                              <button
+                                type="button"
+                                data-delete-entry="${entry.id}"
+                                class="px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-600 transition cursor-pointer"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          `
+                          : ''
+                      }
                     </div>
 
                     <div class="px-3.5">
@@ -927,13 +935,17 @@
               <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(book.title)}</h2>
               <p class="text-xs text-muted truncate">${escapeHtml(book.author || '지은이 미상')}</p>
               <div class="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  data-edit-book-cover="${book.id}"
-                  class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-[11px] font-semibold text-ink transition cursor-pointer"
-                >
-                  표지 수정
-                </button>
+                ${
+                  isOwnBook
+                    ? `<button
+                        type="button"
+                        data-edit-book-cover="${book.id}"
+                        class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-[11px] font-semibold text-ink transition cursor-pointer"
+                      >
+                        표지 수정
+                      </button>`
+                    : ''
+                }
                 <span class="text-[11px] text-muted">총 ${bookEntries.length}개의 구절</span>
               </div>
             </div>
@@ -1051,6 +1063,10 @@
      * =========================================================================
      */
     function openAddBookModal(ownerId) {
+      if (ownerId !== state.activeUserId) {
+        showToast('현재 기록 중인 사용자 본인의 책장에만 책을 추가할 수 있어요.');
+        return;
+      }
       const owner = getUserById(ownerId);
       let tempCoverUrl = '';
 
@@ -1155,6 +1171,11 @@
       document.getElementById('addBookForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
+        if (ownerId !== state.activeUserId) {
+          closeModal();
+          showToast('현재 기록 중인 사용자 본인의 책장에만 책을 추가할 수 있어요.');
+          return;
+        }
         const formData = new FormData(e.target);
         const title = String(formData.get('title') || '').trim();
         const author = String(formData.get('author') || '').trim();
@@ -1185,7 +1206,7 @@
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
       if (book.ownerId !== state.activeUserId) {
-        showToast('현재 기록 중인 사용자 본인의 책장에 있는 책만 삭제할 수 있어요.');
+        showToast('자기 책장의 책만 삭제할 수 있어요.');
         return;
       }
 
@@ -1207,7 +1228,7 @@
         const currentBook = state.books.find((b) => b.id === bookId);
         if (!currentBook || currentBook.ownerId !== state.activeUserId) {
           closeModal();
-          showToast('본인 책장의 책만 삭제할 수 있어요.');
+          showToast('자기 책장의 책만 삭제할 수 있어요.');
           return;
         }
         const relatedEntryIds = state.entries
@@ -1228,6 +1249,10 @@
     function openEditBookCoverModal(bookId) {
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
+      if (book.ownerId !== state.activeUserId) {
+        showToast('현재 기록 중인 사용자 본인의 책장에 있는 책만 표지를 수정할 수 있어요.');
+        return;
+      }
       let tempCoverUrl = book.coverImage || '';
 
       openModal(`
@@ -1326,13 +1351,19 @@
       document.getElementById('editBookCoverForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
+        const currentBook = state.books.find((b) => b.id === bookId);
+        if (!currentBook || currentBook.ownerId !== state.activeUserId) {
+          closeModal();
+          showToast('본인 책장의 책만 표지를 수정할 수 있어요.');
+          return;
+        }
         const compressedCover = tempCoverUrl
           ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
           : '';
-        book.coverImage = compressedCover;
+        currentBook.coverImage = compressedCover;
         closeModal();
         renderApp();
-        await syncSaveBook(book);
+        await syncSaveBook(currentBook);
         showToast('책 표지가 수정되었습니다.');
       });
     }
@@ -1441,7 +1472,6 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(baseImageObj, 0, 0, canvas.width, canvas.height);
         if (strokeCanvas) {
-          // 사진 위에 형광펜 마스크를 한 번만 얹어 덧칠/세기와 무관하게 일정한 연한 색감 유지
           ctx.globalCompositeOperation = 'multiply';
           ctx.globalAlpha = 0.24;
           ctx.drawImage(strokeCanvas, 0, 0, canvas.width, canvas.height);
@@ -1511,7 +1541,6 @@
         if (!hasBaseImageLoaded || !strokeCtx) return;
         isDrawing = true;
         const pt = getCanvasPoint(clientX, clientY);
-        // strokeCanvas에는 불투명 단색으로 기록한 뒤, composeHighlighterCanvas에서 단일 알파로 합성해 농도 일정화
         strokeCtx.save();
         strokeCtx.globalCompositeOperation = 'source-over';
         strokeCtx.globalAlpha = 1;
@@ -1650,6 +1679,10 @@
     function openDeleteEntryModal(entryId) {
       const entry = state.entries.find((item) => item.id === entryId);
       if (!entry) return;
+      if (entry.authorId !== state.activeUserId) {
+        showToast('본인이 기록한 구절만 삭제할 수 있어요.');
+        return;
+      }
 
       openModal(`
         <div class="space-y-3">
@@ -1666,8 +1699,14 @@
 
       document.getElementById('cancelDeleteEntryBtn').addEventListener('click', closeModal);
       document.getElementById('confirmDeleteEntryBtn').addEventListener('click', async () => {
+        const targetEntry = state.entries.find((item) => item.id === entryId);
+        if (!targetEntry || targetEntry.authorId !== state.activeUserId) {
+          closeModal();
+          showToast('본인이 기록한 구절만 삭제할 수 있어요.');
+          return;
+        }
         state.currentTab = 'home';
-        state.selectedBookId = entry.bookId;
+        state.selectedBookId = targetEntry.bookId;
         state.entries = state.entries.filter((item) => item.id !== entryId);
         closeModal();
         renderApp();
@@ -1702,10 +1741,8 @@
         const book = state.books.find((b) => b.id === bookId);
         if (!book || book.ownerId !== state.activeUserId) return;
 
-        const startX = clientX;
-        const startY = clientY;
-        bookEl.dataset.pressStartX = String(startX);
-        bookEl.dataset.pressStartY = String(startY);
+        bookEl.dataset.pressStartX = String(clientX);
+        bookEl.dataset.pressStartY = String(clientY);
 
         longPressTimer = setTimeout(() => {
           longPressTriggeredBookId = bookId;
@@ -1780,7 +1817,13 @@
 
         const editCoverBtn = e.target.closest('[data-edit-book-cover]');
         if (editCoverBtn) {
-          openEditBookCoverModal(editCoverBtn.getAttribute('data-edit-book-cover'));
+          const bookId = editCoverBtn.getAttribute('data-edit-book-cover');
+          const book = state.books.find((b) => b.id === bookId);
+          if (!book || book.ownerId !== state.activeUserId) {
+            showToast('현재 기록 중인 사용자 본인의 책장에 있는 책만 수정할 수 있어요.');
+            return;
+          }
+          openEditBookCoverModal(bookId);
           return;
         }
 
@@ -1794,9 +1837,12 @@
         if (editEntryBtn) {
           const entryId = editEntryBtn.getAttribute('data-edit-entry');
           const entry = state.entries.find((item) => item.id === entryId);
-          if (entry) {
-            openEntryEditorModal(entry.bookId, entry);
+          if (!entry) return;
+          if (entry.authorId !== state.activeUserId) {
+            showToast('본인이 기록한 구절만 수정할 수 있어요.');
+            return;
           }
+          openEntryEditorModal(entry.bookId, entry);
           return;
         }
 
