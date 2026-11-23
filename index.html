@@ -144,119 +144,148 @@
   <!-- 토스트 메시지 배너 -->
   <div id="toastBanner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 hidden max-w-xs w-max rounded-full bg-ink text-white text-xs font-medium px-4 py-2.5 shadow-lg transition-all"></div>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      onSnapshot,
+      collection,
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
     /**
      * =========================================================================
-     * 1. 상태 관리 및 초기 데이터 (단일 세션 인메모리 상태)
+     * 0. Firebase 설정 및 실시간 Firestore 연동 초기화
+     * =========================================================================
+     */
+    const FALLBACK_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDYv4AIaGOSA1VRRGPICMMVLOMtJY-G9VA",
+      authDomain: "readingmemo-a1306.firebaseapp.com",
+      projectId: "readingmemo-a1306",
+      storageBucket: "readingmemo-a1306.firebasestorage.app",
+      messagingSenderId: "295077332637",
+      appId: "1:295077332637:web:ae5f3fba2f01149592b674",
+      measurementId: "G-Y5E7200DHH",
+    };
+
+    const appId = typeof __app_id !== "undefined" ? __app_id : "our-reading-memo";
+    const firebaseConfig =
+      typeof __firebase_config !== "undefined"
+        ? JSON.parse(__firebase_config)
+        : FALLBACK_FIREBASE_CONFIG;
+
+    const isFirebaseConfigured =
+      firebaseConfig &&
+      firebaseConfig.apiKey &&
+      !String(firebaseConfig.apiKey).startsWith("YOUR_");
+
+    let db = null;
+    let auth = null;
+    let currentAuthUser = null;
+
+    if (isFirebaseConfigured) {
+      try {
+        const fbApp = initializeApp(firebaseConfig);
+        db = getFirestore(fbApp);
+        auth = getAuth(fbApp);
+      } catch (err) {
+        console.error("Firebase 초기화 오류:", err);
+      }
+    }
+
+    function getPublicCollection(collectionName) {
+      return collection(db, "artifacts", appId, "public", "data", collectionName);
+    }
+
+    function getPublicDoc(collectionName, docId) {
+      return doc(db, "artifacts", appId, "public", "data", collectionName, docId);
+    }
+
+    /**
+     * =========================================================================
+     * 1. 상태 관리 및 초기 데이터
      * =========================================================================
      */
     const AVATAR_PALETTE = [
-      { bg: 'bg-amber-100', text: 'text-amber-800', dot: 'bg-amber-500', border: 'border-amber-200' },
-      { bg: 'bg-sky-100', text: 'text-sky-800', dot: 'bg-sky-500', border: 'border-sky-200' },
-      { bg: 'bg-emerald-100', text: 'text-emerald-800', dot: 'bg-emerald-500', border: 'border-emerald-200' },
-      { bg: 'bg-rose-100', text: 'text-rose-800', dot: 'bg-rose-500', border: 'border-rose-200' },
-      { bg: 'bg-violet-100', text: 'text-violet-800', dot: 'bg-violet-500', border: 'border-violet-200' },
+      { bg: 'bg-amber-200', text: 'text-amber-950', dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
+      { bg: 'bg-emerald-200', text: 'text-emerald-950', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+      { bg: 'bg-sky-200', text: 'text-sky-950', dot: 'bg-sky-500', badge: 'bg-sky-100 text-sky-900 border-sky-300' },
+      { bg: 'bg-rose-200', text: 'text-rose-950', dot: 'bg-rose-500', badge: 'bg-rose-100 text-rose-900 border-rose-300' },
+      { bg: 'bg-violet-200', text: 'text-violet-950', dot: 'bg-violet-500', badge: 'bg-violet-100 text-violet-900 border-violet-300' },
+      { bg: 'bg-orange-200', text: 'text-orange-950', dot: 'bg-orange-500', badge: 'bg-orange-100 text-orange-900 border-orange-300' },
     ];
 
     const HIGHLIGHT_COLORS = [
-      { name: '노랑', rgba: 'rgba(250, 204, 21, 0.42)', swatch: '#FACC15' },
-      { name: '연두', rgba: 'rgba(74, 222, 128, 0.42)', swatch: '#4ADE80' },
-      { name: '분홍', rgba: 'rgba(244, 114, 182, 0.42)', swatch: '#F472B6' },
-      { name: '하늘', rgba: 'rgba(56, 189, 248, 0.42)', swatch: '#38BDF8' },
+      { name: '노랑', rgba: 'rgba(255, 224, 102, 0.42)', swatch: '#FFE066' },
+      { name: '연두', rgba: 'rgba(169, 239, 174, 0.45)', swatch: '#A9EFAE' },
+      { name: '분홍', rgba: 'rgba(255, 179, 198, 0.45)', swatch: '#FFB3C6' },
+      { name: '하늘', rgba: 'rgba(162, 210, 255, 0.45)', swatch: '#A2D2FF' },
     ];
 
-    // 오늘 날짜 (연-월-일 형식, 시각 없음)
-    function getTodayDateStr() {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
+    const DEFAULT_USERS = [
+      { id: 'user-kkyukkyu', name: '뀨뀨', paletteIndex: 0, createdAt: 1 },
+      { id: 'user-kkyungi', name: '뀽이', paletteIndex: 1, createdAt: 2 },
+      { id: 'user-ttungi', name: '뚱이', paletteIndex: 2, createdAt: 3 },
+    ];
 
-    // 연도와 날짜를 읽기 쉽게 포맷팅 (시각은 포함하지 않음)
-    function formatKoreanDate(dateStr) {
-      if (!dateStr) return getTodayDateStr();
-      const parts = dateStr.split('-');
-      if (parts.length !== 3) return dateStr;
-      return `${Number(parts[0])}년 ${Number(parts[1])}월 ${Number(parts[2])}일`;
-    }
-
-    // 샘플 구절 이미지용 SVG 데이터 URL 생성 (외부 네트워크 의존 없이 깔끔한 페이지 이미지 제공)
-    function createSamplePageImage(titleText, quoteText, accentHex) {
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
-          <rect width="600" height="800" fill="#FCFBF7"/>
-          <rect x="36" y="36" width="528" height="728" rx="12" fill="#FFFFFF" stroke="#E7E2D8" stroke-width="2"/>
-          <text x="72" y="96" font-family="sans-serif" font-size="18" fill="#8C8278">${escapeXml(titleText)}</text>
-          <line x1="72" y1="120" x2="528" y2="120" stroke="#EFECE6" stroke-width="2"/>
-          <rect x="68" y="215" width="440" height="34" rx="6" fill="${accentHex}" fill-opacity="0.45"/>
-          <rect x="68" y="260" width="380" height="34" rx="6" fill="${accentHex}" fill-opacity="0.45"/>
-          <text x="72" y="185" font-family="sans-serif" font-size="22" fill="#3A3530">오늘 읽은 문장 중 마음에 남은 부분</text>
-          <text x="74" y="240" font-family="sans-serif" font-size="24" font-weight="bold" fill="#1E1B18">${escapeXml(quoteText.slice(0, 22))}</text>
-          <text x="74" y="285" font-family="sans-serif" font-size="24" font-weight="bold" fill="#1E1B18">${escapeXml(quoteText.slice(22, 44))}</text>
-          <text x="72" y="360" font-family="sans-serif" font-size="20" fill="#57504A">조용한 오후에 다시 펼쳐보아도</text>
-          <text x="72" y="395" font-family="sans-serif" font-size="20" fill="#57504A">처음 읽을 때의 온도가 그대로 남아 있다.</text>
-          <text x="285" y="732" font-family="sans-serif" font-size="16" fill="#A3998E">- 84p -</text>
-        </svg>
-      `.trim();
-      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-    }
-
-    function escapeXml(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-    }
-
-    // 앱 전체 상태
     const state = {
-      currentTab: 'home', // 'home' | 'settings'
-      selectedBookId: null, // null이면 책장 홈, 책 ID가 있으면 해당 책의 구절 피드
-      viewMode: 'home', // 'home' | 'book' | 'settings' (현재 화면 모드 명시 고정)
-      activeUserId: 'user-kkyukkyu', // 현재 조작 중인 사용자 (기본: 뀨뀨)
-      users: [
-        { id: 'user-kkyukkyu', name: '뀨뀨', paletteIndex: 0 },
-        { id: 'user-kkyungi', name: '뀽이', paletteIndex: 1 },
-        { id: 'user-ttungi', name: '뚱이', paletteIndex: 2 },
-      ],
+      currentTab: 'home',
+      selectedBookId: null,
+      viewMode: 'home',
+      activeUserId: 'user-kkyukkyu',
+      cloudConnected: false,
+      users: [...DEFAULT_USERS],
       books: [],
       entries: [],
     };
 
     /**
      * =========================================================================
-     * 2. 헬퍼 함수
+     * 2. 유틸리티 함수
      * =========================================================================
      */
     function getUserById(userId) {
       return state.users.find((u) => u.id === userId) || {
-        id: userId,
-        name: '알 수 없는 사용자',
+        id: userId || 'unknown',
+        name: '알 수 없음',
         paletteIndex: 0,
       };
     }
 
-    function getPalette(user) {
-      const idx = (user?.paletteIndex ?? 0) % AVATAR_PALETTE.length;
+    function getPalette(paletteIndex = 0) {
+      const idx = Math.abs(Number(paletteIndex) || 0) % AVATAR_PALETTE.length;
       return AVATAR_PALETTE[idx];
     }
 
-    function getBookById(bookId) {
-      return state.books.find((b) => b.id === bookId) || null;
+    function getTodayDateStr() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
-    // 토스트 메시지 배너
+
+    function escapeHtml(str = '') {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    let toastTimer = null;
     function showToast(message) {
-      const toast = document.getElementById('toastBanner');
-      if (!toast) return;
-      toast.textContent = message;
-      toast.classList.remove('hidden');
-      clearTimeout(showToast._timer);
-      showToast._timer = setTimeout(() => {
-        toast.classList.add('hidden');
+      const banner = document.getElementById('toastBanner');
+      banner.textContent = message;
+      banner.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        banner.classList.add('hidden');
       }, 2400);
     }
 
@@ -276,139 +305,160 @@
       card.innerHTML = '';
     }
 
-    // 헤더 우측 '현재 기록 중' 사용자 드롭다운 렌더링 및 토글
-    function renderActiveUserDropdown() {
-      const dropdown = document.getElementById('activeUserDropdown');
-      if (!dropdown) return;
-
-      dropdown.innerHTML = state.users
-        .map((u) => {
-          const pal = getPalette(u);
-          const isCurrent = u.id === state.activeUserId;
-          return `
-            <button
-              type="button"
-              data-pick-header-user="${escapeXml(u.id)}"
-              class="w-full px-3 py-2 flex items-center justify-between gap-2 text-left text-xs transition ${
-                isCurrent ? 'bg-accentSoft/80 font-bold text-accent' : 'hover:bg-amber-100/60 text-ink font-medium'
-              }"
-            >
-              <span class="flex items-center gap-2 truncate">
-                <span class="w-2.5 h-2.5 rounded-full shrink-0 ${pal.dot}"></span>
-                <span class="truncate">${escapeXml(u.name)}</span>
-              </span>
-              ${isCurrent ? '<span class="text-[11px] font-bold">✓</span>' : ''}
-            </button>
-          `;
-        })
-        .join('');
-    }
-
-    function toggleActiveUserDropdown(forceState) {
-      const dropdown = document.getElementById('activeUserDropdown');
-      if (!dropdown) return;
-      renderActiveUserDropdown();
-      const shouldOpen =
-        typeof forceState === 'boolean' ? forceState : dropdown.classList.contains('hidden');
-      if (shouldOpen) {
-        dropdown.classList.remove('hidden');
-      } else {
-        dropdown.classList.add('hidden');
-      }
-    }
-
-    // 카메라 권한 상태를 확인하고 안내 문구를 반환하는 헬퍼
-    // 권한 거부/미지원 환경에서도 모바일·PC 카메라 앱을 바로 열 수 있는 파일 입력 헬퍼
-    function bindDirectCameraInput(inputEl, onFileSelected) {
-      if (!inputEl) return;
-      inputEl.setAttribute('accept', 'image/*');
-      inputEl.setAttribute('capture', 'environment');
-      inputEl.capture = 'environment';
-      inputEl.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          const dataUrl = await readFileAsDataUrl(file);
-          await onFileSelected(dataUrl);
-        } catch (err) {
-          showToast(err.message || '사진을 불러오지 못했습니다.');
-        } finally {
-          inputEl.value = '';
-        }
-      });
-    }
-
-    // 내장 카메라 스트림으로 직접 촬영하거나, 미지원/차단 환경이면 파일 카메라 입력으로 폴백
-    function createInlineCameraHelper({
-      triggerBtn,
-      fallbackInput,
-      panelEl,
-      videoEl,
-      snapBtn,
-      cancelBtn,
-      onCaptured,
+    function bindPhotoCaptureControls({
+      triggerCamId,
+      nativeCamInputId,
+      galleryInputId,
+      camOverlayId,
+      videoId,
+      captureFrameBtnId,
+      cancelCamBtnId,
+      onPhotoSelected,
     }) {
-      let stream = null;
+      const triggerCamBtn = triggerCamId ? document.getElementById(triggerCamId) : null;
+      const nativeCamInput = nativeCamInputId ? document.getElementById(nativeCamInputId) : null;
+      const galleryInput = galleryInputId ? document.getElementById(galleryInputId) : null;
+      const camOverlay = camOverlayId ? document.getElementById(camOverlayId) : null;
+      const videoEl = videoId ? document.getElementById(videoId) : null;
+      const captureFrameBtn = captureFrameBtnId ? document.getElementById(captureFrameBtnId) : null;
+      const cancelCamBtn = cancelCamBtnId ? document.getElementById(cancelCamBtnId) : null;
+
+      let activeStream = null;
 
       function stopStream() {
-        if (stream) {
-          stream.getTracks().forEach((t) => t.stop());
-          stream = null;
+        if (activeStream) {
+          activeStream.getTracks().forEach((track) => track.stop());
+          activeStream = null;
         }
-        if (videoEl) videoEl.srcObject = null;
-        if (panelEl) panelEl.classList.add('hidden');
+        if (videoEl) {
+          videoEl.srcObject = null;
+        }
+        if (camOverlay) {
+          camOverlay.classList.add('hidden');
+        }
       }
 
-      if (fallbackInput) {
-        bindDirectCameraInput(fallbackInput, async (dataUrl) => {
-          stopStream();
-          await onCaptured(dataUrl);
-        });
+      function fallbackToNativeInput() {
+        stopStream();
+        if (nativeCamInput) {
+          nativeCamInput.setAttribute('capture', 'environment');
+          nativeCamInput.capture = 'environment';
+          nativeCamInput.click();
+        } else if (galleryInput) {
+          galleryInput.click();
+        }
       }
 
-      if (triggerBtn) {
-        triggerBtn.addEventListener('click', async () => {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            if (fallbackInput) fallbackInput.click();
+      if (triggerCamBtn) {
+        triggerCamBtn.addEventListener('click', async () => {
+          const isFileScheme = window.location.protocol === 'file:' || window.location.href.includes('FileProvider');
+          if (isFileScheme || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            fallbackToNativeInput();
             return;
           }
-          try {
-            stopStream();
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: { ideal: 'environment' } },
-              audio: false,
-            });
-            videoEl.srcObject = stream;
-            await videoEl.play();
-            panelEl.classList.remove('hidden');
-          } catch (_) {
-            stopStream();
-            if (fallbackInput) fallbackInput.click();
+
+          if (camOverlay && videoEl) {
+            try {
+              stopStream();
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' } },
+                audio: false,
+              });
+              activeStream = stream;
+              videoEl.srcObject = stream;
+              camOverlay.classList.remove('hidden');
+              await videoEl.play();
+              return;
+            } catch (err) {
+              fallbackToNativeInput();
+              return;
+            }
           }
+
+          fallbackToNativeInput();
         });
       }
 
-      if (snapBtn) {
-        snapBtn.addEventListener('click', async () => {
-          if (!videoEl || !videoEl.videoWidth) return;
+      if (captureFrameBtn) {
+        captureFrameBtn.addEventListener('click', async () => {
+          if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+            fallbackToNativeInput();
+            return;
+          }
           const tempCanvas = document.createElement('canvas');
           tempCanvas.width = videoEl.videoWidth;
           tempCanvas.height = videoEl.videoHeight;
           const tctx = tempCanvas.getContext('2d');
           tctx.drawImage(videoEl, 0, 0, tempCanvas.width, tempCanvas.height);
-          const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
+          const rawDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
           stopStream();
-          await onCaptured(dataUrl);
+          const compressed = await compressImageDataUrl(rawDataUrl);
+          await onPhotoSelected(compressed);
         });
       }
 
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
+      if (cancelCamBtn) {
+        cancelCamBtn.addEventListener('click', () => {
           stopStream();
+        });
+      }
+
+      if (nativeCamInput) {
+        nativeCamInput.setAttribute('capture', 'environment');
+        nativeCamInput.capture = 'environment';
+        nativeCamInput.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = '';
+          if (!file) return;
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            await onPhotoSelected(dataUrl);
+          } catch (err) {
+            showToast(err.message || '사진을 불러오지 못했습니다.');
+          }
+        });
+      }
+
+      if (galleryInput) {
+        galleryInput.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = '';
+          if (!file) return;
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            await onPhotoSelected(dataUrl);
+          } catch (err) {
+            showToast(err.message || '사진을 불러오지 못했습니다.');
+          }
         });
       }
 
       return { stopStream };
+    }
+
+    function compressImageDataUrl(rawDataUrl, maxDimension = 960, quality = 0.78) {
+      return new Promise((resolve) => {
+        if (!rawDataUrl || !rawDataUrl.startsWith('data:image/')) {
+          resolve(rawDataUrl);
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth || 800;
+          const h = img.naturalHeight || 800;
+          const scale = Math.max(w, h) > maxDimension ? maxDimension / Math.max(w, h) : 1;
+          const targetW = Math.max(1, Math.round(w * scale));
+          const targetH = Math.max(1, Math.round(h * scale));
+          const c = document.createElement('canvas');
+          c.width = targetW;
+          c.height = targetH;
+          const cctx = c.getContext('2d');
+          cctx.drawImage(img, 0, 0, targetW, targetH);
+          resolve(c.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(rawDataUrl);
+        img.src = rawDataUrl;
+      });
     }
 
     function readFileAsDataUrl(file) {
@@ -418,10 +468,159 @@
           return;
         }
         const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onload = async () => {
+          const raw = String(reader.result || '');
+          const compressed = await compressImageDataUrl(raw);
+          resolve(compressed);
+        };
         reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
         reader.readAsDataURL(file);
       });
+    }
+
+    /**
+     * =========================================================================
+     * 2-1. Firestore 실시간 동기화 및 CRUD 헬퍼
+     * =========================================================================
+     */
+    async function syncSaveUser(userObj) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await setDoc(getPublicDoc('users', userObj.id), userObj);
+      } catch (err) {
+        console.error('사용자 저장 오류:', err);
+        showToast('클라우드 동기화에 실패했습니다.');
+      }
+    }
+
+    async function syncSaveBook(bookObj) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await setDoc(getPublicDoc('books', bookObj.id), bookObj);
+      } catch (err) {
+        console.error('책 저장 오류:', err);
+        showToast('책 저장 중 동기화 오류가 발생했습니다.');
+      }
+    }
+
+    async function syncDeleteBookAndEntries(bookId, relatedEntryIds) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await deleteDoc(getPublicDoc('books', bookId));
+        for (const entryId of relatedEntryIds) {
+          await deleteDoc(getPublicDoc('entries', entryId));
+        }
+      } catch (err) {
+        console.error('책 삭제 오류:', err);
+        showToast('책 삭제 중 동기화 오류가 발생했습니다.');
+      }
+    }
+
+    async function syncSaveEntry(entryObj) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await setDoc(getPublicDoc('entries', entryObj.id), entryObj);
+      } catch (err) {
+        console.error('구절 저장 오류:', err);
+        showToast('구절 저장 중 동기화 오류가 발생했습니다.');
+      }
+    }
+
+    async function syncUpdateEntryReplies(entryId, replies) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await updateDoc(getPublicDoc('entries', entryId), { replies });
+      } catch (err) {
+        console.error('답글 업데이트 오류:', err);
+        showToast('답글 저장 중 동기화 오류가 발생했습니다.');
+      }
+    }
+
+    async function syncDeleteEntry(entryId) {
+      if (!db || !currentAuthUser) return;
+      try {
+        await deleteDoc(getPublicDoc('entries', entryId));
+      } catch (err) {
+        console.error('구절 삭제 오류:', err);
+        showToast('구절 삭제 중 동기화 오류가 발생했습니다.');
+      }
+    }
+
+    async function initRealtimeSync() {
+      if (!db || !auth) return;
+      try {
+        if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+          const cred = await signInWithCustomToken(auth, __initial_auth_token);
+          currentAuthUser = cred.user;
+        } else {
+          const cred = await signInAnonymously(auth);
+          currentAuthUser = cred.user;
+        }
+      } catch (err) {
+        console.error('Firebase 인증 오류:', err);
+        showToast('실시간 연동 인증에 실패했습니다. 설정을 확인해주세요.');
+        return;
+      }
+
+      if (!currentAuthUser) return;
+      state.cloudConnected = true;
+
+      onSnapshot(
+        getPublicCollection('users'),
+        async (snapshot) => {
+          if (snapshot.empty) {
+            for (const defaultUser of DEFAULT_USERS) {
+              await syncSaveUser(defaultUser);
+            }
+            return;
+          }
+          const loadedUsers = [];
+          snapshot.forEach((docSnap) => {
+            loadedUsers.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.users = loadedUsers;
+          if (!state.users.some((u) => u.id === state.activeUserId) && state.users[0]) {
+            state.activeUserId = state.users[0].id;
+          }
+          renderApp();
+        },
+        (error) => {
+          console.error('users 구독 오류:', error);
+        }
+      );
+
+      onSnapshot(
+        getPublicCollection('books'),
+        (snapshot) => {
+          const loadedBooks = [];
+          snapshot.forEach((docSnap) => {
+            loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.books = loadedBooks;
+          renderApp();
+        },
+        (error) => {
+          console.error('books 구독 오류:', error);
+        }
+      );
+
+      onSnapshot(
+        getPublicCollection('entries'),
+        (snapshot) => {
+          const loadedEntries = [];
+          snapshot.forEach((docSnap) => {
+            loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          loadedEntries.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.entries = loadedEntries;
+          renderApp();
+        },
+        (error) => {
+          console.error('entries 구독 오류:', error);
+        }
+      );
     }
 
     /**
@@ -431,30 +630,41 @@
      */
     function renderApp() {
       const activeUser = getUserById(state.activeUserId);
-      const activePalette = getPalette(activeUser);
+      const activePalette = getPalette(activeUser.paletteIndex);
+      document.getElementById('activeUserLabel').textContent = activeUser.name;
+      document.getElementById('activeUserDot').className = `w-2.5 h-2.5 rounded-full ${activePalette.dot}`;
 
-      // 상단 우측 '현재 기록 중' 뱃지 갱신
-      const activeUserLabel = document.getElementById('activeUserLabel');
-      const activeUserDot = document.getElementById('activeUserDot');
-      if (activeUserLabel) activeUserLabel.textContent = activeUser.name;
-      if (activeUserDot) {
-        activeUserDot.className = `w-2.5 h-2.5 rounded-full ${activePalette.dot}`;
-      }
-      renderActiveUserDropdown();
+      const dropdown = document.getElementById('activeUserDropdown');
+      dropdown.innerHTML = state.users
+        .map((u) => {
+          const pal = getPalette(u.paletteIndex);
+          const isSelected = u.id === state.activeUserId;
+          return `
+            <button
+              type="button"
+              data-select-active-user="${u.id}"
+              class="w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-amber-100/70 transition ${
+                isSelected ? 'font-bold text-accent bg-amber-50' : 'text-ink'
+              }"
+            >
+              <span class="flex items-center gap-2 truncate">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0 ${pal.dot}"></span>
+                <span class="truncate">${escapeHtml(u.name)}</span>
+              </span>
+              ${isSelected ? '<span>✓</span>' : ''}
+            </button>
+          `;
+        })
+        .join('');
 
-      // 하단 탭 스타일 갱신
       const navHomeBtn = document.getElementById('navHomeBtn');
       const navSettingsBtn = document.getElementById('navSettingsBtn');
       if (state.currentTab === 'home') {
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+        navHomeBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+        navSettingsBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
       } else {
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+        navHomeBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+        navSettingsBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
       }
 
       const mainContent = document.getElementById('mainContent');
@@ -465,303 +675,307 @@
       if (state.currentTab === 'settings') {
         backBtn.classList.add('hidden');
         backBtn.classList.remove('flex');
-        headerTitle.textContent = '우리의 독서메모';
-        headerSubtitle.textContent = '사용자 추가 및 관리';
+        headerTitle.textContent = '사용자 및 책장 설정';
+        headerSubtitle.textContent = '기록하는 멤버를 추가하거나 관리하세요';
         renderSettingsView(mainContent);
         return;
       }
 
       if (state.selectedBookId) {
-        const book = getBookById(state.selectedBookId);
-        if (book) {
-          const owner = getUserById(book.ownerId);
-          backBtn.classList.remove('hidden');
-          backBtn.classList.add('flex');
-          headerTitle.textContent = book.title;
-          headerSubtitle.textContent = `${owner.name}의 책장${book.author ? ` · ${book.author}` : ''}`;
-          renderBookDetailView(mainContent, book);
+        const book = state.books.find((b) => b.id === state.selectedBookId);
+        if (!book) {
+          state.selectedBookId = null;
+          renderApp();
           return;
         }
-        state.selectedBookId = null;
+        const owner = getUserById(book.ownerId);
+        backBtn.classList.remove('hidden');
+        backBtn.classList.add('flex');
+        headerTitle.textContent = book.title;
+        headerSubtitle.textContent = `${owner.name}의 책장${book.author ? ` · ${book.author}` : ''}`;
+        renderBookDetailView(mainContent, book);
+        return;
       }
 
       backBtn.classList.add('hidden');
       backBtn.classList.remove('flex');
       headerTitle.textContent = '우리의 독서메모';
-      headerSubtitle.textContent = '소중한 문장과 사진을 함께 남기는 책장';
+      headerSubtitle.textContent = state.cloudConnected
+        ? '실시간 동기화 중 · 함께 남기는 책장'
+        : '소중한 문장과 사진을 함께 남기는 책장';
       renderHomeView(mainContent);
     }
 
-    // 홈 화면: 사용자별 책장 (가로 3권 배치)
+    /**
+     * =========================================================================
+     * 4. 책장 홈 뷰 렌더링 (사용자별 책장 섹션 + 책 추가 + 책 삭제)
+     * =========================================================================
+     */
     function renderHomeView(container) {
-      const shelvesHtml = state.users
+      const sectionsHtml = state.users
         .map((user) => {
-          const pal = getPalette(user);
-          const isCurrentUser = user.id === state.activeUserId;
+          const pal = getPalette(user.paletteIndex);
           const userBooks = state.books.filter((b) => b.ownerId === user.id);
 
-          const booksGridHtml =
-            userBooks.length === 0
-              ? `
-                <div class="rounded-2xl border border-dashed border-amber-900/20 bg-paper/80 py-7 px-4 text-center">
-                  <p class="text-sm text-muted">아직 등록된 책이 없어요.</p>
-                </div>
-              `
-              : `
-                <div class="grid grid-cols-3 gap-3">
-                  ${userBooks
-                    .map((book) => {
-                      const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
-                      const coverContent = book.coverImage
-                        ? `<img src="${book.coverImage}" alt="${escapeXml(book.title)} 표지" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                           <div class="hidden w-full h-full flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-amber-100 to-orange-100">
-                             <span class="text-xs font-bold text-ink line-clamp-3 leading-snug">${escapeXml(book.title)}</span>
-                           </div>`
-                        : `<div class="w-full h-full flex-col flex items-center justify-center p-2 text-center bg-gradient-to-br from-amber-100 to-orange-100">
-                             <span class="text-xs font-bold text-ink line-clamp-3 leading-snug">${escapeXml(book.title)}</span>
-                             ${book.author ? `<span class="mt-1 text-[10px] text-muted line-clamp-1">${escapeXml(book.author)}</span>` : ''}
-                           </div>`;
-
-                      return `
-                        <button
-                          type="button"
-                          data-open-book="${escapeXml(book.id)}"
-                          data-long-press-book="${escapeXml(book.id)}"
-                          data-long-press-owner="${isCurrentUser ? 'true' : 'false'}"
-                          class="group flex flex-col text-left focus:outline-none select-none"
-                        >
-                          <div class="relative w-full aspect-[3/4.2] rounded-r-xl rounded-l-sm overflow-hidden book-spine-edge border border-amber-900/15 bg-surface transition transform group-hover:-translate-y-0.5 group-active:scale-[0.98]">
-                            ${coverContent}
-                            <span class="absolute bottom-1.5 right-1.5 rounded-full bg-ink/75 text-white text-[10px] font-semibold px-1.5 py-0.5">
-                              ${entryCount}장
-                            </span>
-                          </div>
-                          <p class="mt-1.5 text-xs font-bold text-ink line-clamp-1">${escapeXml(book.title)}</p>
-                          ${book.author ? `<p class="text-[11px] text-muted line-clamp-1">${escapeXml(book.author)}</p>` : ''}
-                        </button>
-                      `;
-                    })
-                    .join('')}
-                </div>
-                <div class="shelf-ledge mt-2.5"></div>
-              `;
-
-          return `
-            <section class="rounded-3xl bg-surface/95 border border-amber-900/15 p-4 shadow-xs space-y-3 relative">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="w-3 h-3 rounded-full shrink-0 ${pal.dot}"></span>
-                  <h2 class="font-serif text-base font-bold text-ink truncate">${escapeXml(user.name)}의 책장</h2>
-                  <span class="text-xs text-muted shrink-0">(${userBooks.length}권)</span>
-                </div>
-                ${
-                  isCurrentUser
-                    ? `
-                      <button
-                        type="button"
-                        data-add-book-for="${escapeXml(user.id)}"
-                        class="shrink-0 rounded-2xl bg-accent hover:opacity-95 active:scale-95 text-white text-xs font-bold px-3 py-1.5 shadow-2xs transition"
-                      >
-                        + 책 추가
-                      </button>
-                    `
-                    : ''
-                }
-              </div>
-              ${booksGridHtml}
-            </section>
-          `;
-        })
-        .join('');
-
-      container.innerHTML = shelvesHtml;
-    }
-
-    // 책 상세 뷰: 구절 사진 피드 (나중에 찍은 사진이 아래 배치) + 답글
-    function renderBookDetailView(container, book) {
-      const owner = getUserById(book.ownerId);
-      const isBookOwner = book.ownerId === state.activeUserId;
-      const bookEntries = state.entries.filter((e) => e.bookId === book.id);
-
-      const topBarHtml = `
-        <div class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-xs flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-12 aspect-[3/4.2] rounded-r-lg rounded-l-xs overflow-hidden book-spine-edge border border-amber-900/15 bg-amber-100 shrink-0 flex items-center justify-center">
-              ${
-                book.coverImage
-                  ? `<img src="${book.coverImage}" alt="${escapeXml(book.title)}" class="w-full h-full object-cover" />`
-                  : `<span class="text-[10px] font-bold text-ink text-center px-1 line-clamp-2">${escapeXml(book.title)}</span>`
-              }
-            </div>
-            <div class="min-w-0">
-              <p class="text-xs text-muted truncate">${escapeXml(owner.name)}의 책장</p>
-              <h2 class="font-serif text-base font-bold text-ink truncate">${escapeXml(book.title)}</h2>
-              ${
-                isBookOwner
-                  ? `<button type="button" data-edit-book-cover="${escapeXml(book.id)}" class="mt-1 text-xs font-bold text-accent hover:underline">
-                       표지 수정
-                     </button>`
-                  : ''
-              }
-            </div>
-          </div>
-
-          ${
-            isBookOwner
-              ? `
-                <button
-                  type="button"
-                  data-open-capture-modal="${escapeXml(book.id)}"
-                  class="shrink-0 rounded-2xl bg-accent hover:opacity-95 active:scale-95 text-white text-xs font-bold px-3.5 py-2.5 shadow-sm transition"
-                >
-                  📷 구절 찍기
-                </button>
-              `
-              : ''
-          }
-        </div>
-      `;
-
-      if (bookEntries.length === 0) {
-        container.innerHTML = `
-          ${topBarHtml}
-          <div class="rounded-3xl border border-dashed border-amber-900/20 bg-surface/80 py-10 px-4 text-center space-y-2">
-            <p class="text-sm font-bold text-ink">아직 찍어둔 구절 사진이 없어요</p>
-            <p class="text-xs text-muted">${escapeXml(owner.name)} 책장에서 중요한 구절을 사진으로 남겨보세요.</p>
-          </div>
-        `;
-        return;
-      }
-
-      const entriesHtml = bookEntries
-        .map((entry, idx) => {
-          const author = getUserById(entry.authorId);
-          const authorPal = getPalette(author);
-          const isEntryAuthor = entry.authorId === state.activeUserId;
-          const replies = Array.isArray(entry.replies) ? entry.replies : [];
-
-          const repliesHtml = replies
-            .map((rep) => {
-              const repUser = getUserById(rep.authorId);
-              const repPal = getPalette(repUser);
+          const booksGridHtml = userBooks
+            .map((book) => {
+              const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
               return `
-                <div class="rounded-2xl bg-paper border border-amber-900/10 px-3 py-2 space-y-0.5">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="inline-flex items-center gap-1.5 text-xs font-bold ${repPal.text}">
-                      <span class="w-2 h-2 rounded-full ${repPal.dot}"></span>
-                      ${escapeXml(repUser.name)}
-                    </span>
-                    <span class="text-[11px] text-muted">${escapeXml(formatKoreanDate(rep.date))}</span>
-                  </div>
-                  <p class="text-sm text-ink leading-snug">${escapeXml(rep.text)}</p>
+                <div class="group relative flex flex-col">
+                  <button
+                    type="button"
+                    data-open-book="${book.id}"
+                    class="w-full text-left flex flex-col rounded-2xl overflow-hidden bg-surface border border-amber-900/15 book-spine-edge hover:-translate-y-0.5 transition cursor-pointer"
+                  >
+                    <div class="aspect-[3/4] w-full bg-amber-100/50 relative overflow-hidden flex items-center justify-center">
+                      ${
+                        book.coverImage
+                          ? `<img src="${book.coverImage}" alt="${escapeHtml(book.title)} 표지" class="w-full h-full object-cover" />`
+                          : `<div class="p-2.5 text-center flex flex-col items-center justify-center gap-1">
+                               <span class="text-2xl">📖</span>
+                               <span class="text-xs font-bold text-ink line-clamp-2 leading-snug">${escapeHtml(book.title)}</span>
+                             </div>`
+                      }
+                      <span class="absolute bottom-1.5 right-1.5 rounded-full bg-ink/75 text-white text-[10px] font-semibold px-2 py-0.5">
+                        구절 ${entryCount}
+                      </span>
+                    </div>
+                    <div class="p-2 bg-surface">
+                      <p class="text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
+                      <p class="text-[11px] text-muted truncate">${escapeHtml(book.author || '지은이 미상')}</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-delete-book="${book.id}"
+                    title="책 삭제"
+                    aria-label="${escapeHtml(book.title)} 삭제"
+                    class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-amber-900/20 text-muted hover:text-red-600 hover:border-red-300 shadow-xs flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                  >
+                    ×
+                  </button>
                 </div>
               `;
             })
             .join('');
 
+          const addBookCardHtml = `
+            <button
+              type="button"
+              data-add-book-for-user="${user.id}"
+              class="aspect-[3/4] w-full rounded-2xl border-2 border-dashed border-amber-900/25 bg-amber-50/60 hover:bg-amber-100/70 flex flex-col items-center justify-center gap-1.5 p-2 text-center transition cursor-pointer min-h-[132px]"
+            >
+              <span class="w-8 h-8 rounded-full bg-accentSoft text-accent flex items-center justify-center text-lg font-bold">+</span>
+              <span class="text-xs font-bold text-ink leading-tight">책 추가</span>
+              <span class="text-[10px] text-muted">${escapeHtml(user.name)} 책장</span>
+            </button>
+          `;
+
           return `
-            <article class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-xs space-y-3">
+            <section class="rounded-3xl bg-surface/90 border border-amber-900/10 p-3.5 shadow-2xs space-y-3">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${authorPal.bg} ${authorPal.text}">
-                    #${idx + 1} · ${escapeXml(author.name)}
+                  <span class="w-7 h-7 rounded-full ${pal.bg} ${pal.text} flex items-center justify-center text-xs font-bold shrink-0">
+                    ${escapeHtml(user.name.slice(0, 1))}
                   </span>
-                  <span class="text-xs text-muted">${escapeXml(formatKoreanDate(entry.photoDate))}</span>
+                  <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(user.name)}의 책장</h2>
+                  <span class="text-xs text-muted shrink-0">(${userBooks.length}권)</span>
                 </div>
-                ${
-                  isEntryAuthor
-                    ? `
-                      <div class="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          data-edit-entry="${escapeXml(entry.id)}"
-                          class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold px-2.5 py-1 transition"
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          data-delete-entry="${escapeXml(entry.id)}"
-                          class="rounded-xl bg-rose-100/80 hover:bg-rose-200/80 text-rose-700 text-xs font-bold px-2.5 py-1 transition"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    `
-                    : ''
-                }
               </div>
 
-              <button
-                type="button"
-                data-zoom-photo="${escapeXml(entry.id)}"
-                class="block w-full rounded-2xl overflow-hidden border border-amber-900/15 bg-stone-100 focus:outline-none group"
-                title="사진 확대 보기"
-              >
-                <img
-                  src="${entry.photoUrl}"
-                  alt="${escapeXml(author.name)}의 구절 사진"
-                  class="w-full max-h-96 object-contain mx-auto transition group-hover:scale-[1.01]"
-                />
-              </button>
+              <div class="grid grid-cols-3 gap-2.5 items-start">
+                ${booksGridHtml}
+                ${addBookCardHtml}
+              </div>
 
-              ${
-                replies.length > 0
-                  ? `<div class="space-y-2 pt-1">${repliesHtml}</div>`
-                  : ''
-              }
-
-              <form data-reply-form="${escapeXml(entry.id)}" class="flex items-center gap-2 pt-1">
-                <input
-                  type="text"
-                  name="replyText"
-                  placeholder="답글을 남겨보세요..."
-                  class="flex-1 rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2 text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
-                />
-                <button
-                  type="submit"
-                  class="shrink-0 rounded-2xl bg-amber-900/85 hover:bg-amber-900 text-white text-xs font-bold px-3.5 py-2.5 transition"
-                >
-                  등록
-                </button>
-              </form>
-            </article>
+              <div class="shelf-ledge w-full"></div>
+            </section>
           `;
         })
         .join('');
 
       container.innerHTML = `
-        ${topBarHtml}
-        <div class="space-y-4">${entriesHtml}</div>
+        <div class="space-y-5">
+          ${sectionsHtml}
+        </div>
       `;
     }
 
-    // 설정 뷰: 사용자 목록 및 새 사용자 추가
+    /**
+     * =========================================================================
+     * 5. 책 상세 (구절 사진 피드 + 형광펜 편집 + 답글 스레드) 뷰 렌더링
+     * =========================================================================
+     */
+    function renderBookDetailView(container, book) {
+      const bookEntries = state.entries.filter((e) => e.bookId === book.id);
+
+      const entriesHtml =
+        bookEntries.length === 0
+          ? `
+            <div class="rounded-3xl bg-surface border border-dashed border-amber-900/20 p-8 text-center space-y-2">
+              <p class="text-3xl">📷</p>
+              <p class="text-sm font-bold text-ink">아직 기록된 구절 사진이 없어요</p>
+              <p class="text-xs text-muted">아래 '구절 사진 찍기' 버튼으로 인상 깊은 문장을 남겨보세요.</p>
+            </div>
+          `
+          : bookEntries
+              .map((entry) => {
+                const author = getUserById(entry.authorId);
+                const authorPal = getPalette(author.paletteIndex);
+                const replies = Array.isArray(entry.replies) ? entry.replies : [];
+
+                const repliesListHtml = replies
+                  .map((rep) => {
+                    const repUser = getUserById(rep.authorId);
+                    const repPal = getPalette(repUser.paletteIndex);
+                    return `
+                      <div class="flex items-start gap-2 rounded-2xl bg-paper px-3 py-2 border border-amber-900/10">
+                        <span class="mt-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold border shrink-0 ${repPal.badge}">
+                          ${escapeHtml(repUser.name)}
+                        </span>
+                        <div class="min-w-0 flex-1">
+                          <p class="text-xs text-ink break-words leading-relaxed">${escapeHtml(rep.text)}</p>
+                          <p class="text-[10px] text-muted mt-0.5">${escapeHtml(rep.date || '')}</p>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join('');
+
+                return `
+                  <article class="rounded-3xl bg-surface border border-amber-900/15 shadow-2xs overflow-hidden space-y-3 pb-3.5">
+                    <div class="flex items-center justify-between gap-2 px-3.5 pt-3.5">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border shrink-0 ${authorPal.badge}">
+                          ${escapeHtml(author.name)}
+                        </span>
+                        <span class="text-xs text-muted truncate">${escapeHtml(entry.photoDate || '')}</span>
+                      </div>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          data-edit-entry="${entry.id}"
+                          class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-xs font-semibold text-ink transition cursor-pointer"
+                        >
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          data-delete-entry="${entry.id}"
+                          class="px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-600 transition cursor-pointer"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="px-3.5">
+                      <div class="rounded-2xl overflow-hidden border border-amber-900/10 bg-amber-50/40">
+                        <img
+                          src="${entry.photoUrl}"
+                          alt="${escapeHtml(book.title)} 구절 사진"
+                          class="w-full max-h-[420px] object-contain mx-auto bg-amber-950/[0.03]"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="px-3.5 space-y-2">
+                      <div class="space-y-1.5">
+                        ${repliesListHtml}
+                      </div>
+
+                      <form data-reply-form="${entry.id}" class="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          name="replyText"
+                          placeholder="${escapeHtml(getUserById(state.activeUserId).name)}(으)로 답글 남기기..."
+                          class="flex-1 min-w-0 rounded-2xl border border-amber-900/20 bg-paper px-3 py-2 text-xs text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
+                        />
+                        <button
+                          type="submit"
+                          class="px-3.5 py-2 rounded-2xl bg-accent hover:bg-accent/90 text-white text-xs font-bold shrink-0 transition cursor-pointer"
+                        >
+                          등록
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+                `;
+              })
+              .join('');
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <div class="rounded-3xl bg-surface border border-amber-900/15 p-3.5 flex items-center gap-3.5 shadow-2xs">
+            <div class="w-16 h-22 rounded-xl overflow-hidden bg-amber-100/60 border border-amber-900/10 shrink-0 flex items-center justify-center">
+              ${
+                book.coverImage
+                  ? `<img src="${book.coverImage}" alt="${escapeHtml(book.title)}" class="w-full h-full object-cover" />`
+                  : `<span class="text-2xl">📖</span>`
+              }
+            </div>
+            <div class="min-w-0 flex-1 space-y-1">
+              <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(book.title)}</h2>
+              <p class="text-xs text-muted truncate">${escapeHtml(book.author || '지은이 미상')}</p>
+              <div class="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  data-edit-book-cover="${book.id}"
+                  class="px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-[11px] font-semibold text-ink transition cursor-pointer"
+                >
+                  표지 수정
+                </button>
+                <span class="text-[11px] text-muted">총 ${bookEntries.length}개의 구절</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            data-open-new-entry="${book.id}"
+            class="w-full py-3 px-4 rounded-2xl bg-accent hover:bg-accent/90 active:scale-[0.99] text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
+          >
+            <span>📷</span>
+            <span>구절 사진 찍기</span>
+          </button>
+
+          <div class="space-y-4">
+            ${entriesHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * =========================================================================
+     * 6. 설정 뷰 렌더링 (사용자 추가)
+     * =========================================================================
+     */
     function renderSettingsView(container) {
-      const usersListHtml = state.users
+      const userChipsHtml = state.users
         .map((u) => {
-          const pal = getPalette(u);
+          const pal = getPalette(u.paletteIndex);
           const isCurrent = u.id === state.activeUserId;
-          const bookCount = state.books.filter((b) => b.ownerId === u.id).length;
           return `
-            <div class="flex items-center justify-between gap-2 rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2.5">
+            <div class="flex items-center justify-between rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2.5">
               <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-3 h-3 rounded-full shrink-0 ${pal.dot}"></span>
-                <div class="min-w-0">
-                  <p class="text-sm font-bold text-ink truncate">${escapeXml(u.name)}</p>
-                  <p class="text-xs text-muted">책 ${bookCount}권</p>
-                </div>
+                <span class="w-7 h-7 rounded-full ${pal.bg} ${pal.text} flex items-center justify-center text-xs font-bold shrink-0">
+                  ${escapeHtml(u.name.slice(0, 1))}
+                </span>
+                <span class="text-sm font-bold text-ink truncate">${escapeHtml(u.name)}</span>
+                ${
+                  isCurrent
+                    ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">현재 기록 중</span>`
+                    : ''
+                }
               </div>
               <button
                 type="button"
-                data-select-active-user="${escapeXml(u.id)}"
-                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                  isCurrent
-                    ? 'bg-accent text-white'
-                    : 'bg-amber-100/80 hover:bg-amber-200/80 text-ink'
-                }"
+                data-select-active-user="${u.id}"
+                class="text-xs font-semibold px-2.5 py-1 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink transition cursor-pointer"
               >
-                ${isCurrent ? '기록 중' : '선택'}
+                선택
               </button>
             </div>
           `;
@@ -769,35 +983,38 @@
         .join('');
 
       container.innerHTML = `
-        <section class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-xs space-y-3">
-          <h2 class="font-serif text-base font-bold text-ink">함께하는 사용자</h2>
-          <div class="space-y-2">${usersListHtml}</div>
-        </section>
+        <div class="space-y-5">
+          <section class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-2xs space-y-3">
+            <h2 class="font-serif text-base font-bold text-ink">함께 기록하는 사용자</h2>
+            <div class="space-y-2">
+              ${userChipsHtml}
+            </div>
+          </section>
 
-        <section class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-xs space-y-3">
-          <h2 class="font-serif text-base font-bold text-ink">사용자 추가</h2>
-          <form id="addUserForm" class="flex items-center gap-2">
-            <input
-              type="text"
-              name="newUserName"
-              maxlength="12"
-              placeholder="새 사용자 이름"
-              class="flex-1 rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2 text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
-              required
-            />
-            <button
-              type="submit"
-              class="shrink-0 rounded-2xl bg-accent hover:opacity-95 text-white text-xs font-bold px-4 py-2.5 shadow-sm transition"
-            >
-              추가
-            </button>
-          </form>
-        </section>
+          <section class="rounded-3xl bg-surface border border-amber-900/15 p-4 shadow-2xs space-y-3">
+            <h2 class="font-serif text-base font-bold text-ink">새 사용자 추가</h2>
+            <form id="addUserForm" class="flex items-center gap-2">
+              <input
+                type="text"
+                name="newUserName"
+                maxlength="12"
+                placeholder="예: 찌찌, 콩이"
+                class="flex-1 min-w-0 rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
+              />
+              <button
+                type="submit"
+                class="px-4 py-2.5 rounded-2xl bg-accent hover:bg-accent/90 text-white text-sm font-bold shrink-0 transition cursor-pointer"
+              >
+                추가
+              </button>
+            </form>
+          </section>
+        </div>
       `;
 
       const addUserForm = document.getElementById('addUserForm');
       if (addUserForm) {
-        addUserForm.addEventListener('submit', (e) => {
+        addUserForm.addEventListener('submit', async (e) => {
           e.preventDefault();
           const formData = new FormData(e.target);
           const name = String(formData.get('newUserName') || '').trim();
@@ -809,18 +1026,20 @@
             id: `user-${Date.now()}`,
             name,
             paletteIndex: state.users.length % AVATAR_PALETTE.length,
+            createdAt: Date.now(),
           };
           state.users.push(newUser);
           state.activeUserId = newUser.id;
-          showToast(`"${name}" 사용자가 추가되었습니다.`);
           renderApp();
+          await syncSaveUser(newUser);
+          showToast(`"${name}" 사용자가 추가되었습니다.`);
         });
       }
     }
 
     /**
      * =========================================================================
-     * 4. 책 추가 모달 (표지 카메라 앱 촬영 / 파일 선택 / 선택 안 함)
+     * 7. 모달 핸들러 (책 추가, 책 삭제, 표지 수정, 구절 사진 찍기/형광펜, 구절 삭제)
      * =========================================================================
      */
     function openAddBookModal(ownerId) {
@@ -829,123 +1048,103 @@
 
       openModal(`
         <div class="flex items-center justify-between">
-          <h3 class="text-base font-bold text-ink">${escapeXml(owner.name)} 책장에 책 추가</h3>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/70 text-muted font-bold">✕</button>
+          <h3 class="font-serif text-lg font-bold text-ink">${escapeHtml(owner.name)} 책장에 책 추가</h3>
+          <button type="button" id="closeModalBtn" class="w-8 h-8 rounded-full bg-amber-100/80 text-ink font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
         </div>
 
         <form id="addBookForm" class="space-y-3.5">
           <div>
-            <label class="block text-xs font-semibold text-ink mb-1">책 제목 *</label>
+            <label class="block text-xs font-bold text-ink mb-1">책 제목 *</label>
             <input
               type="text"
               name="title"
-              placeholder="예: 어린 왕자"
-              class="w-full rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2 text-sm text-ink focus:outline-none focus:border-accent"
               required
+              placeholder="예: 어린 왕자"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-ink mb-1">지은이 (선택)</label>
+            <label class="block text-xs font-bold text-ink mb-1">지은이 (선택)</label>
             <input
               type="text"
               name="author"
               placeholder="예: 생텍쥐페리"
-              class="w-full rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2 text-sm text-ink focus:outline-none focus:border-accent"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
           <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-semibold text-ink">책 표지 사진 (선택 안 해도 돼요)</label>
-              <button type="button" id="clearCoverBtn" class="hidden text-xs text-rose-600 font-medium">표지 지우기</button>
-            </div>
-
+            <label class="block text-xs font-bold text-ink">책 표지 사진 (선택 안 해도 돼요)</label>
             <div class="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                id="openAddCoverCamBtn"
-                class="cursor-pointer rounded-2xl border border-accent/40 bg-accentSoft/70 hover:bg-accentSoft py-2.5 px-3 text-xs font-bold text-accent text-center transition"
+                id="addBookCamBtn"
+                class="py-2.5 px-3 rounded-2xl bg-accentSoft hover:bg-amber-200/70 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                📸 카메라로 바로 찍기
+                <span>📸</span>
+                <span>카메라 앱으로 바로 찍기</span>
               </button>
-              <input id="directCoverCameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
-              <label class="cursor-pointer rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/60 py-2.5 px-3 text-xs font-semibold text-ink text-center transition">
-                🖼️ 사진 파일 선택
-                <input id="bookCoverFileInput" type="file" accept="image/*" class="hidden" />
+              <label class="py-2.5 px-3 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                <span>🖼️</span>
+                <span>사진 파일 선택</span>
+                <input id="addBookGalleryInput" type="file" accept="image/*" class="hidden" />
               </label>
+              <input id="addBookNativeCamInput" type="file" accept="image/*" capture="environment" class="hidden" />
             </div>
 
-            <div id="addCoverCamPanel" class="hidden rounded-2xl overflow-hidden border border-amber-900/15 bg-stone-900 p-2 space-y-2">
-              <video id="addCoverCamVideo" playsinline autoplay muted class="w-full max-h-60 object-cover rounded-xl bg-black"></video>
+            <div id="addBookCamOverlay" class="hidden rounded-2xl overflow-hidden border border-amber-900/20 bg-black p-2 space-y-2">
+              <video id="addBookVideo" playsinline autoplay muted class="w-full max-h-52 object-cover rounded-xl bg-black"></video>
               <div class="flex gap-2">
-                <button type="button" id="cancelAddCoverCamBtn" class="flex-1 py-2 rounded-xl bg-stone-700 text-white text-xs font-semibold">닫기</button>
-                <button type="button" id="snapAddCoverCamBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold">찰칵 찍기</button>
+                <button type="button" id="addBookCaptureBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold cursor-pointer">촬영하기</button>
+                <button type="button" id="addBookCancelCamBtn" class="px-3 py-2 rounded-xl bg-white/20 text-white text-xs font-semibold cursor-pointer">닫기</button>
               </div>
             </div>
 
-            <div id="coverPreviewBox" class="hidden w-28 aspect-[3/4.2] rounded-xl overflow-hidden border border-amber-900/15 mx-auto">
-              <img id="coverPreviewImg" src="" alt="표지 미리보기" class="w-full h-full object-cover" />
+            <div id="addBookCoverPreview" class="hidden relative rounded-2xl overflow-hidden border border-amber-900/15 bg-amber-50/50 p-2">
+              <img id="addBookCoverImg" src="" alt="표지 미리보기" class="w-24 h-32 object-cover rounded-xl mx-auto" />
+              <button type="button" id="clearAddBookCoverBtn" class="mt-1.5 mx-auto block text-[11px] text-red-600 font-semibold cursor-pointer">표지 제거</button>
             </div>
           </div>
 
           <div class="flex gap-2 pt-2">
-            <button type="button" data-close-modal class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold">
-              취소
-            </button>
-            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-semibold shadow-sm">
-              책장에 넣기
-            </button>
+            <button type="button" id="cancelAddBookBtn" class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-ink text-sm font-bold cursor-pointer">취소</button>
+            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-bold cursor-pointer">책장에 넣기</button>
           </div>
         </form>
       `);
 
-      const fileInput = document.getElementById('bookCoverFileInput');
-      const previewBox = document.getElementById('coverPreviewBox');
-      const previewImg = document.getElementById('coverPreviewImg');
-      const clearBtn = document.getElementById('clearCoverBtn');
-      const directCamInput = document.getElementById('directCoverCameraInput');
-
-      function applyCoverPhoto(dataUrl) {
-        tempCoverUrl = dataUrl;
-        previewImg.src = tempCoverUrl;
-        previewBox.classList.remove('hidden');
-        clearBtn.classList.remove('hidden');
-        showToast('표지 사진이 등록되었습니다.');
-      }
-
-      const camHelper = createInlineCameraHelper({
-        triggerBtn: document.getElementById('openAddCoverCamBtn'),
-        fallbackInput: directCamInput,
-        panelEl: document.getElementById('addCoverCamPanel'),
-        videoEl: document.getElementById('addCoverCamVideo'),
-        snapBtn: document.getElementById('snapAddCoverCamBtn'),
-        cancelBtn: document.getElementById('cancelAddCoverCamBtn'),
-        onCaptured: (dataUrl) => applyCoverPhoto(dataUrl),
-      });
-
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          tempCoverUrl = await readFileAsDataUrl(file);
-          previewImg.src = tempCoverUrl;
+      const camHelper = bindPhotoCaptureControls({
+        triggerCamId: 'addBookCamBtn',
+        nativeCamInputId: 'addBookNativeCamInput',
+        galleryInputId: 'addBookGalleryInput',
+        camOverlayId: 'addBookCamOverlay',
+        videoId: 'addBookVideo',
+        captureFrameBtnId: 'addBookCaptureBtn',
+        cancelCamBtnId: 'addBookCancelCamBtn',
+        onPhotoSelected: async (dataUrl) => {
+          tempCoverUrl = dataUrl;
+          const previewBox = document.getElementById('addBookCoverPreview');
+          const previewImg = document.getElementById('addBookCoverImg');
+          previewImg.src = dataUrl;
           previewBox.classList.remove('hidden');
-          clearBtn.classList.remove('hidden');
-        } catch (err) {
-          showToast(err.message);
-        }
+        },
       });
 
-      clearBtn.addEventListener('click', () => {
+      document.getElementById('clearAddBookCoverBtn').addEventListener('click', () => {
         tempCoverUrl = '';
-        fileInput.value = '';
-        previewImg.src = '';
-        previewBox.classList.add('hidden');
-        clearBtn.classList.add('hidden');
+        document.getElementById('addBookCoverImg').src = '';
+        document.getElementById('addBookCoverPreview').classList.add('hidden');
       });
 
-      document.getElementById('addBookForm').addEventListener('submit', (e) => {
+      const handleClose = () => {
+        camHelper.stopStream();
+        closeModal();
+      };
+      document.getElementById('closeModalBtn').addEventListener('click', handleClose);
+      document.getElementById('cancelAddBookBtn').addEventListener('click', handleClose);
+
+      document.getElementById('addBookForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
         const formData = new FormData(e.target);
@@ -955,312 +1154,305 @@
           showToast('책 제목을 입력해주세요.');
           return;
         }
-        state.books.push({
+        const compressedCover = tempCoverUrl
+          ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
+          : '';
+        const newBook = {
           id: `book-${Date.now()}`,
           ownerId,
           title,
           author,
-          coverImage: tempCoverUrl || '',
-        });
+          coverImage: compressedCover,
+          createdAt: Date.now(),
+        };
+        state.books.push(newBook);
         closeModal();
-        showToast(`"${title}" 책이 책장에 추가되었습니다.`);
         renderApp();
+        await syncSaveBook(newBook);
+        showToast(`"${title}" 책이 책장에 추가되었습니다.`);
       });
     }
 
-    // 책장에서 본인 책을 길게 눌렀을 때 삭제 모달 열기
     function openDeleteBookModal(bookId) {
-      const book = getBookById(bookId);
+      const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
-      if (book.ownerId !== state.activeUserId) {
-        showToast('본인의 책장에 있는 책만 삭제할 수 있어요.');
-        return;
-      }
 
       openModal(`
         <div class="space-y-3">
-          <h3 class="text-base font-bold text-ink">"${escapeXml(book.title)}" 책을 삭제할까요?</h3>
+          <h3 class="font-serif text-lg font-bold text-ink">책을 삭제할까요?</h3>
           <p class="text-xs text-muted leading-relaxed">
-            책장에 담긴 책과 해당 책에 기록된 구절 사진 및 답글이 모두 삭제됩니다.
+            <strong class="text-ink">"${escapeHtml(book.title)}"</strong> 책과 그 안에 기록된 구절 사진·답글이 함께 삭제됩니다.
           </p>
           <div class="flex gap-2 pt-2">
-            <button type="button" data-close-modal class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold">
-              취소
-            </button>
-            <button type="button" id="confirmDeleteBookBtn" class="flex-1 py-2.5 rounded-2xl bg-rose-600 text-white text-sm font-semibold shadow-sm">
-              삭제하기
-            </button>
+            <button type="button" id="cancelDeleteBookBtn" class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-ink text-sm font-bold cursor-pointer">취소</button>
+            <button type="button" id="confirmDeleteBookBtn" class="flex-1 py-2.5 rounded-2xl bg-red-600 text-white text-sm font-bold cursor-pointer">삭제하기</button>
           </div>
         </div>
       `);
 
-      document.getElementById('confirmDeleteBookBtn').addEventListener('click', () => {
+      document.getElementById('cancelDeleteBookBtn').addEventListener('click', closeModal);
+      document.getElementById('confirmDeleteBookBtn').addEventListener('click', async () => {
+        const relatedEntryIds = state.entries
+          .filter((e) => e.bookId === bookId)
+          .map((e) => e.id);
         state.books = state.books.filter((b) => b.id !== bookId);
         state.entries = state.entries.filter((e) => e.bookId !== bookId);
         if (state.selectedBookId === bookId) {
           state.selectedBookId = null;
         }
         closeModal();
-        showToast(`"${book.title}" 책이 삭제되었습니다.`);
         renderApp();
+        await syncDeleteBookAndEntries(bookId, relatedEntryIds);
+        showToast(`"${book.title}" 책이 삭제되었습니다.`);
       });
     }
 
-    // 책 표지 수정 모달
     function openEditBookCoverModal(bookId) {
-      const book = getBookById(bookId);
+      const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
-      if (book.ownerId !== state.activeUserId) {
-        showToast('본인의 책장 책 표지만 수정할 수 있어요.');
-        return;
-      }
-
       let tempCoverUrl = book.coverImage || '';
 
       openModal(`
         <div class="flex items-center justify-between">
-          <h3 class="text-base font-bold text-ink">"${escapeXml(book.title)}" 표지 수정</h3>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/70 text-muted font-bold">✕</button>
+          <h3 class="font-serif text-lg font-bold text-ink">책 표지 수정</h3>
+          <button type="button" id="closeEditCoverBtn" class="w-8 h-8 rounded-full bg-amber-100/80 text-ink font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
         </div>
 
         <form id="editBookCoverForm" class="space-y-3.5">
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-semibold text-ink">책 표지 사진</label>
-              <button type="button" id="removeExistingCoverBtn" class="${tempCoverUrl ? '' : 'hidden '}text-xs text-rose-600 font-medium">
-                표지 삭제
-              </button>
-            </div>
+          <p class="text-xs font-bold text-ink">${escapeHtml(book.title)}</p>
 
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                id="openEditCoverCamBtn"
-                class="cursor-pointer rounded-2xl border border-accent/40 bg-accentSoft/70 hover:bg-accentSoft py-2.5 px-3 text-xs font-bold text-accent text-center transition"
-              >
-                📸 카메라로 바로 찍기
-              </button>
-              <input id="directEditCoverCameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
-              <label class="cursor-pointer rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/60 py-2.5 px-3 text-xs font-semibold text-ink text-center transition">
-                🖼️ 사진 파일 선택
-                <input id="editBookCoverFileInput" type="file" accept="image/*" class="hidden" />
-              </label>
-            </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              id="editCoverCamBtn"
+              class="py-2.5 px-3 rounded-2xl bg-accentSoft hover:bg-amber-200/70 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>📸</span>
+              <span>카메라 앱으로 바로 찍기</span>
+            </button>
+            <label class="py-2.5 px-3 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer">
+              <span>🖼️</span>
+              <span>사진 파일 선택</span>
+              <input id="editCoverGalleryInput" type="file" accept="image/*" class="hidden" />
+            </label>
+            <input id="editCoverNativeCamInput" type="file" accept="image/*" capture="environment" class="hidden" />
+          </div>
 
-            <div id="editCoverCamPanel" class="hidden rounded-2xl overflow-hidden border border-amber-900/15 bg-stone-900 p-2 space-y-2">
-              <video id="editCoverCamVideo" playsinline autoplay muted class="w-full max-h-60 object-cover rounded-xl bg-black"></video>
-              <div class="flex gap-2">
-                <button type="button" id="cancelEditCoverCamBtn" class="flex-1 py-2 rounded-xl bg-stone-700 text-white text-xs font-semibold">닫기</button>
-                <button type="button" id="snapEditCoverCamBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold">찰칵 찍기</button>
-              </div>
-            </div>
-
-            <div id="editCoverPreviewBox" class="${tempCoverUrl ? '' : 'hidden '}w-28 aspect-[3/4.2] rounded-xl overflow-hidden border border-amber-900/15 mx-auto">
-              <img id="editCoverPreviewImg" src="${tempCoverUrl}" alt="표지 미리보기" class="w-full h-full object-cover" />
+          <div id="editCoverCamOverlay" class="hidden rounded-2xl overflow-hidden border border-amber-900/20 bg-black p-2 space-y-2">
+            <video id="editCoverVideo" playsinline autoplay muted class="w-full max-h-52 object-cover rounded-xl bg-black"></video>
+            <div class="flex gap-2">
+              <button type="button" id="editCoverCaptureBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold cursor-pointer">촬영하기</button>
+              <button type="button" id="editCoverCancelCamBtn" class="px-3 py-2 rounded-xl bg-white/20 text-white text-xs font-semibold cursor-pointer">닫기</button>
             </div>
           </div>
 
-          <div class="flex gap-2 pt-2">
-            <button type="button" data-close-modal class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold">
-              취소
-            </button>
-            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-semibold shadow-sm">
-              저장하기
-            </button>
+          <div class="rounded-2xl border border-amber-900/15 bg-amber-50/40 p-3 text-center space-y-2">
+            <img
+              id="editCoverPreviewImg"
+              src="${tempCoverUrl || ''}"
+              alt="표지 미리보기"
+              class="${tempCoverUrl ? '' : 'hidden'} w-28 h-36 object-cover rounded-xl mx-auto shadow-xs"
+            />
+            <p id="editCoverEmptyText" class="${tempCoverUrl ? 'hidden' : ''} text-xs text-muted py-4">표지 이미지 없음</p>
+            ${
+              tempCoverUrl
+                ? `<button type="button" id="removeCoverBtn" class="text-[11px] text-red-600 font-semibold cursor-pointer">표지 삭제</button>`
+                : ''
+            }
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            <button type="button" id="cancelEditCoverBtn" class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-ink text-sm font-bold cursor-pointer">취소</button>
+            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-bold cursor-pointer">저장</button>
           </div>
         </form>
       `);
 
-      const fileInput = document.getElementById('editBookCoverFileInput');
-      const previewBox = document.getElementById('editCoverPreviewBox');
-      const previewImg = document.getElementById('editCoverPreviewImg');
-      const removeBtn = document.getElementById('removeExistingCoverBtn');
-      const directCamInput = document.getElementById('directEditCoverCameraInput');
+      const camHelper = bindPhotoCaptureControls({
+        triggerCamId: 'editCoverCamBtn',
+        nativeCamInputId: 'editCoverNativeCamInput',
+        galleryInputId: 'editCoverGalleryInput',
+        camOverlayId: 'editCoverCamOverlay',
+        videoId: 'editCoverVideo',
+        captureFrameBtnId: 'editCoverCaptureBtn',
+        cancelCamBtnId: 'editCoverCancelCamBtn',
+        onPhotoSelected: async (dataUrl) => {
+          tempCoverUrl = dataUrl;
+          const imgEl = document.getElementById('editCoverPreviewImg');
+          const emptyEl = document.getElementById('editCoverEmptyText');
+          imgEl.src = dataUrl;
+          imgEl.classList.remove('hidden');
+          emptyEl.classList.add('hidden');
+        },
+      });
 
-      function applyEditedCoverPhoto(dataUrl) {
-        tempCoverUrl = dataUrl;
-        previewImg.src = tempCoverUrl;
-        previewBox.classList.remove('hidden');
-        removeBtn.classList.remove('hidden');
-        showToast('새 표지 사진이 등록되었습니다.');
+      const removeBtn = document.getElementById('removeCoverBtn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          tempCoverUrl = '';
+          const imgEl = document.getElementById('editCoverPreviewImg');
+          const emptyEl = document.getElementById('editCoverEmptyText');
+          imgEl.src = '';
+          imgEl.classList.add('hidden');
+          emptyEl.classList.remove('hidden');
+        });
       }
 
-      const camHelper = createInlineCameraHelper({
-        triggerBtn: document.getElementById('openEditCoverCamBtn'),
-        fallbackInput: directCamInput,
-        panelEl: document.getElementById('editCoverCamPanel'),
-        videoEl: document.getElementById('editCoverCamVideo'),
-        snapBtn: document.getElementById('snapEditCoverCamBtn'),
-        cancelBtn: document.getElementById('cancelEditCoverCamBtn'),
-        onCaptured: (dataUrl) => applyEditedCoverPhoto(dataUrl),
-      });
+      const handleClose = () => {
+        camHelper.stopStream();
+        closeModal();
+      };
+      document.getElementById('closeEditCoverBtn').addEventListener('click', handleClose);
+      document.getElementById('cancelEditCoverBtn').addEventListener('click', handleClose);
 
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          tempCoverUrl = await readFileAsDataUrl(file);
-          previewImg.src = tempCoverUrl;
-          previewBox.classList.remove('hidden');
-          removeBtn.classList.remove('hidden');
-        } catch (err) {
-          showToast(err.message);
-        }
-      });
-
-      removeBtn.addEventListener('click', () => {
-        tempCoverUrl = '';
-        fileInput.value = '';
-        previewImg.src = '';
-        previewBox.classList.add('hidden');
-        removeBtn.classList.add('hidden');
-      });
-
-      document.getElementById('editBookCoverForm').addEventListener('submit', (e) => {
+      document.getElementById('editBookCoverForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
-        book.coverImage = tempCoverUrl || '';
+        const compressedCover = tempCoverUrl
+          ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
+          : '';
+        book.coverImage = compressedCover;
         closeModal();
-        showToast('책 표지가 수정되었습니다.');
         renderApp();
+        await syncSaveBook(book);
+        showToast('책 표지가 수정되었습니다.');
       });
     }
 
-    // 구절 사진 촬영 및 형광펜 표시 모달 (작성/수정 공용 헬퍼)
-    function openEntryEditorModal({ bookId, existingEntry = null }) {
-      const book = getBookById(bookId);
+    function openEntryEditorModal(bookId, existingEntry = null) {
+      const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
 
       let photoDataUrl = existingEntry ? existingEntry.photoUrl : '';
-      let selectedColor = HIGHLIGHT_COLORS[0];
+      let currentHighlightColor = HIGHLIGHT_COLORS[0].rgba;
       let isDrawing = false;
       let hasBaseImageLoaded = false;
 
-      const baseImg = new Image();
-      const highlightCanvas = document.createElement('canvas');
-      const hctx = highlightCanvas.getContext('2d');
+      const colorSwatchesHtml = HIGHLIGHT_COLORS.map((c, idx) => {
+        return `
+          <button
+            type="button"
+            data-highlight-color="${encodeURIComponent(c.rgba)}"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+              idx === 0 ? 'border-ink bg-amber-100/80' : 'border-amber-900/15 bg-paper'
+            }"
+          >
+            <span class="w-3.5 h-3.5 rounded-full border border-black/15" style="background:${c.swatch}"></span>
+            <span>${c.name}</span>
+          </button>
+        `;
+      }).join('');
 
       openModal(`
         <div class="flex items-center justify-between">
-          <h3 class="text-base font-bold text-ink">${existingEntry ? '구절 기록 수정' : '중요 구절 사진 찍기'}</h3>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/70 text-muted font-bold">✕</button>
+          <h3 class="font-serif text-lg font-bold text-ink">${existingEntry ? '구절 사진 수정' : '구절 사진 기록'}</h3>
+          <button type="button" id="closeEntryEditorBtn" class="w-8 h-8 rounded-full bg-amber-100/80 text-ink font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
         </div>
 
         <form id="entryEditorForm" class="space-y-3.5">
           <div>
-            <label class="block text-xs font-semibold text-ink mb-1">사진 등록일 (연·월·일)</label>
+            <label class="block text-xs font-bold text-ink mb-1">기록 날짜</label>
             <input
               type="date"
               name="photoDate"
-              value="${escapeXml(existingEntry?.photoDate || getTodayDateStr())}"
-              class="w-full rounded-2xl border border-amber-900/15 bg-paper px-3.5 py-2 text-sm text-ink focus:outline-none focus:border-accent"
-              required
+              value="${escapeHtml(existingEntry?.photoDate || getTodayDateStr())}"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2 text-xs text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              id="entryCamBtn"
+              class="py-2.5 px-3 rounded-2xl bg-accentSoft hover:bg-amber-200/70 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>📸</span>
+              <span>카메라 앱으로 바로 찍기</span>
+            </button>
+            <label class="py-2.5 px-3 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer">
+              <span>🖼️</span>
+              <span>사진 파일 선택</span>
+              <input id="entryGalleryInput" type="file" accept="image/*" class="hidden" />
+            </label>
+            <input id="entryNativeCamInput" type="file" accept="image/*" capture="environment" class="hidden" />
+          </div>
+
+          <div id="entryCamOverlay" class="hidden rounded-2xl overflow-hidden border border-amber-900/20 bg-black p-2 space-y-2">
+            <video id="entryVideo" playsinline autoplay muted class="w-full max-h-52 object-cover rounded-xl bg-black"></video>
+            <div class="flex gap-2">
+              <button type="button" id="entryCaptureBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold cursor-pointer">촬영하기</button>
+              <button type="button" id="entryCancelCamBtn" class="px-3 py-2 rounded-xl bg-white/20 text-white text-xs font-semibold cursor-pointer">닫기</button>
+            </div>
+          </div>
+
           <div class="space-y-2">
-            <label class="block text-xs font-semibold text-ink">구절 사진</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                id="openPassageCamBtn"
-                class="cursor-pointer rounded-2xl border border-accent/40 bg-accentSoft/70 hover:bg-accentSoft py-2.5 px-3 text-xs font-bold text-accent text-center transition"
-              >
-                📸 카메라로 바로 찍기
-              </button>
-              <input id="directPassageCameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
-              <label class="cursor-pointer rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/60 py-2.5 px-3 text-xs font-semibold text-ink text-center transition">
-                🖼️ 사진 파일 선택
-                <input id="passageFileInput" type="file" accept="image/*" class="hidden" />
-              </label>
+            <div class="flex items-center justify-between flex-wrap gap-1.5">
+              <span class="text-xs font-bold text-ink">형광펜 밑줄 (선택)</span>
+              <button type="button" id="undoHighlightBtn" class="text-xs font-semibold text-accent hover:underline cursor-pointer">원본 사진으로 되돌리기</button>
             </div>
-
-            <div id="passageCamPanel" class="hidden rounded-2xl overflow-hidden border border-amber-900/15 bg-stone-900 p-2 space-y-2">
-              <video id="passageCamVideo" playsinline autoplay muted class="w-full max-h-64 object-cover rounded-xl bg-black"></video>
-              <div class="flex gap-2">
-                <button type="button" id="cancelPassageCamBtn" class="flex-1 py-2 rounded-xl bg-stone-700 text-white text-xs font-semibold">닫기</button>
-                <button type="button" id="snapPassageCamBtn" class="flex-1 py-2 rounded-xl bg-accent text-white text-xs font-bold">찰칵 찍기</button>
-              </div>
+            <div id="highlightColorBar" class="flex items-center gap-1.5 flex-wrap">
+              ${colorSwatchesHtml}
             </div>
           </div>
 
-          <div id="highlighterSection" class="${photoDataUrl ? '' : 'hidden '}space-y-2">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <span class="text-xs font-semibold text-ink">형광펜으로 중요한 부분 칠하기</span>
-              <button type="button" id="clearHighlightsBtn" class="text-xs font-semibold text-rose-600 hover:underline">
-                형광펜 지우기
-              </button>
-            </div>
-            <div class="flex items-center gap-2" id="highlightPalette">
-              ${HIGHLIGHT_COLORS.map(
-                (c, idx) => `
-                  <button
-                    type="button"
-                    data-hl-idx="${idx}"
-                    class="w-7 h-7 rounded-full border-2 ${idx === 0 ? 'border-ink scale-110' : 'border-transparent'} transition"
-                    style="background-color: ${c.swatch};"
-                    title="${c.name} 형광펜"
-                  ></button>
-                `
-              ).join('')}
-            </div>
-            <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-stone-100">
-              <canvas id="passageCanvas" class="w-full block highlighter-canvas"></canvas>
-            </div>
+          <div id="canvasWrapper" class="rounded-2xl border border-amber-900/15 bg-amber-50/40 overflow-hidden min-h-[180px] flex items-center justify-center">
+            <p id="canvasPlaceholder" class="text-xs text-muted p-6 text-center">
+              위 버튼으로 구절 사진을 찍거나 선택하면<br/>손가락으로 밑줄을 그을 수 있어요.
+            </p>
+            <canvas id="highlighterCanvas" class="highlighter-canvas hidden w-full h-auto block"></canvas>
           </div>
 
-          <div class="flex gap-2 pt-2">
-            <button type="button" data-close-modal class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold">
-              취소
-            </button>
-            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-semibold shadow-sm">
-              저장하기
-            </button>
+          <div class="flex gap-2 pt-1">
+            <button type="button" id="cancelEntryEditorBtn" class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-ink text-sm font-bold cursor-pointer">취소</button>
+            <button type="submit" class="flex-1 py-2.5 rounded-2xl bg-accent text-white text-sm font-bold cursor-pointer">저장하기</button>
           </div>
         </form>
       `);
 
-      const passageFileInput = document.getElementById('passageFileInput');
-      const directCamInput = document.getElementById('directPassageCameraInput');
-      const hlSection = document.getElementById('highlighterSection');
-      const canvas = document.getElementById('passageCanvas');
+      const canvas = document.getElementById('highlighterCanvas');
       const ctx = canvas.getContext('2d');
-      const clearHlBtn = document.getElementById('clearHighlightsBtn');
+      const placeholder = document.getElementById('canvasPlaceholder');
 
-      function initCanvasWithImage(dataUrl) {
-        baseImg.onload = () => {
-          const maxW = 540;
-          const natW = baseImg.naturalWidth || 600;
-          const natH = baseImg.naturalHeight || 800;
+      function loadImageOntoCanvas(src) {
+        if (!src) return;
+        const img = new Image();
+        img.onload = () => {
+          const maxW = 560;
+          const natW = img.naturalWidth || 600;
+          const natH = img.naturalHeight || 800;
           const scale = natW > maxW ? maxW / natW : 1;
-          const targetW = Math.max(1, Math.round(natW * scale));
-          const targetH = Math.max(1, Math.round(natH * scale));
-
-          canvas.width = targetW;
-          canvas.height = targetH;
-          highlightCanvas.width = targetW;
-          highlightCanvas.height = targetH;
-          hctx.clearRect(0, 0, targetW, targetH);
-
+          canvas.width = Math.max(1, Math.round(natW * scale));
+          canvas.height = Math.max(1, Math.round(natH * scale));
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           hasBaseImageLoaded = true;
-          redrawCombinedCanvas();
+          placeholder.classList.add('hidden');
+          canvas.classList.remove('hidden');
         };
-        baseImg.src = dataUrl;
+        img.src = src;
       }
 
-      function applyCapturedPassagePhoto(dataUrl) {
-        photoDataUrl = dataUrl;
-        hlSection.classList.remove('hidden');
-        initCanvasWithImage(photoDataUrl);
-        showToast('구절 사진이 준비되었습니다. 형광펜으로 칠해보세요.');
+      if (photoDataUrl) {
+        loadImageOntoCanvas(photoDataUrl);
       }
 
-      function redrawCombinedCanvas() {
-        if (!hasBaseImageLoaded) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
-        ctx.drawImage(highlightCanvas, 0, 0, canvas.width, canvas.height);
-      }
+      document.querySelectorAll('[data-highlight-color]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          currentHighlightColor = decodeURIComponent(btn.getAttribute('data-highlight-color'));
+          document.querySelectorAll('[data-highlight-color]').forEach((other) => {
+            other.classList.remove('border-ink', 'bg-amber-100/80');
+            other.classList.add('border-amber-900/15', 'bg-paper');
+          });
+          btn.classList.remove('border-amber-900/15', 'bg-paper');
+          btn.classList.add('border-ink', 'bg-amber-100/80');
+        });
+      });
+
+      document.getElementById('undoHighlightBtn').addEventListener('click', () => {
+        if (!photoDataUrl) return;
+        loadImageOntoCanvas(photoDataUrl);
+        showToast('원본 사진으로 되돌렸습니다.');
+      });
 
       function getCanvasPoint(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
@@ -1272,115 +1464,92 @@
         };
       }
 
-      function startStroke(pt) {
+      function startStroke(clientX, clientY) {
         if (!hasBaseImageLoaded) return;
         isDrawing = true;
-        hctx.save();
-        hctx.lineCap = 'round';
-        hctx.lineJoin = 'round';
-        hctx.lineWidth = 18;
-        hctx.strokeStyle = selectedColor.rgba;
-        hctx.beginPath();
-        hctx.moveTo(pt.x, pt.y);
+        const pt = getCanvasPoint(clientX, clientY);
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(12, Math.round(canvas.width * 0.032));
+        ctx.strokeStyle = currentHighlightColor;
+        ctx.beginPath();
+        ctx.moveTo(pt.x, pt.y);
+        ctx.lineTo(pt.x + 0.1, pt.y);
+        ctx.stroke();
+        ctx.restore();
       }
 
-      function moveStroke(pt) {
-        if (!isDrawing) return;
-        hctx.lineTo(pt.x, pt.y);
-        hctx.stroke();
-        redrawCombinedCanvas();
+      function moveStroke(clientX, clientY) {
+        if (!isDrawing || !hasBaseImageLoaded) return;
+        const pt = getCanvasPoint(clientX, clientY);
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(12, Math.round(canvas.width * 0.032));
+        ctx.strokeStyle = currentHighlightColor;
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+        ctx.restore();
       }
 
       function endStroke() {
-        if (!isDrawing) return;
         isDrawing = false;
-        hctx.restore();
-        redrawCombinedCanvas();
       }
 
-      canvas.addEventListener('mousedown', (e) => startStroke(getCanvasPoint(e.clientX, e.clientY)));
-      canvas.addEventListener('mousemove', (e) => moveStroke(getCanvasPoint(e.clientX, e.clientY)));
+      canvas.addEventListener('mousedown', (e) => startStroke(e.clientX, e.clientY));
+      canvas.addEventListener('mousemove', (e) => moveStroke(e.clientX, e.clientY));
       window.addEventListener('mouseup', endStroke);
 
-      canvas.addEventListener(
-        'touchstart',
-        (e) => {
-          if (!e.touches[0]) return;
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches[0]) {
           e.preventDefault();
-          startStroke(getCanvasPoint(e.touches[0].clientX, e.touches[0].clientY));
-        },
-        { passive: false }
-      );
-      canvas.addEventListener(
-        'touchmove',
-        (e) => {
-          if (!e.touches[0]) return;
+          startStroke(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches[0]) {
           e.preventDefault();
-          moveStroke(getCanvasPoint(e.touches[0].clientX, e.touches[0].clientY));
-        },
-        { passive: false }
-      );
+          moveStroke(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
       canvas.addEventListener('touchend', endStroke);
 
-      document.querySelectorAll('[data-hl-idx]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const idx = Number(btn.getAttribute('data-hl-idx'));
-          selectedColor = HIGHLIGHT_COLORS[idx] || HIGHLIGHT_COLORS[0];
-          document.querySelectorAll('[data-hl-idx]').forEach((b, i) => {
-            if (i === idx) {
-              b.classList.add('border-ink', 'scale-110');
-              b.classList.remove('border-transparent');
-            } else {
-              b.classList.remove('border-ink', 'scale-110');
-              b.classList.add('border-transparent');
-            }
-          });
-        });
+      const camHelper = bindPhotoCaptureControls({
+        triggerCamId: 'entryCamBtn',
+        nativeCamInputId: 'entryNativeCamInput',
+        galleryInputId: 'entryGalleryInput',
+        camOverlayId: 'entryCamOverlay',
+        videoId: 'entryVideo',
+        captureFrameBtnId: 'entryCaptureBtn',
+        cancelCamBtnId: 'entryCancelCamBtn',
+        onPhotoSelected: async (dataUrl) => {
+          photoDataUrl = dataUrl;
+          loadImageOntoCanvas(dataUrl);
+        },
       });
 
-      clearHlBtn.addEventListener('click', () => {
-        hctx.clearRect(0, 0, highlightCanvas.width, highlightCanvas.height);
-        redrawCombinedCanvas();
-      });
-
-      const camHelper = createInlineCameraHelper({
-        triggerBtn: document.getElementById('openPassageCamBtn'),
-        fallbackInput: directCamInput,
-        panelEl: document.getElementById('passageCamPanel'),
-        videoEl: document.getElementById('passageCamVideo'),
-        snapBtn: document.getElementById('snapPassageCamBtn'),
-        cancelBtn: document.getElementById('cancelPassageCamBtn'),
-        onCaptured: (dataUrl) => applyCapturedPassagePhoto(dataUrl),
-      });
-
-      passageFileInput.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          photoDataUrl = await readFileAsDataUrl(file);
-          hlSection.classList.remove('hidden');
-          initCanvasWithImage(photoDataUrl);
-        } catch (err) {
-          showToast(err.message);
-        }
-      });
-
-      if (photoDataUrl) {
-        hlSection.classList.remove('hidden');
-        initCanvasWithImage(photoDataUrl);
-      }
-
-      const modalCard = document.getElementById('modalCard');
       const cleanupObserver = new MutationObserver(() => {
-        if (!modalCard.contains(canvas)) {
+        if (!document.body.contains(canvas)) {
           camHelper.stopStream();
           window.removeEventListener('mouseup', endStroke);
           cleanupObserver.disconnect();
         }
       });
-      cleanupObserver.observe(modalCard, { childList: true });
+      cleanupObserver.observe(document.body, { childList: true, subtree: true });
 
-      document.getElementById('entryEditorForm').addEventListener('submit', (e) => {
+      const handleClose = () => {
+        camHelper.stopStream();
+        window.removeEventListener('mouseup', endStroke);
+        cleanupObserver.disconnect();
+        closeModal();
+      };
+      document.getElementById('closeEntryEditorBtn').addEventListener('click', handleClose);
+      document.getElementById('cancelEntryEditorBtn').addEventListener('click', handleClose);
+
+      document.getElementById('entryEditorForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
         window.removeEventListener('mouseup', endStroke);
@@ -1394,11 +1563,11 @@
           return;
         }
 
-        const finalPhotoUrl = hasBaseImageLoaded
-          ? canvas.toDataURL('image/jpeg', 0.9)
+        const rawFinalUrl = hasBaseImageLoaded
+          ? canvas.toDataURL('image/jpeg', 0.82)
           : photoDataUrl;
+        const finalPhotoUrl = await compressImageDataUrl(rawFinalUrl, 960, 0.78);
 
-        // 현재 선택된 책을 확실히 유지
         state.currentTab = 'home';
         state.selectedBookId = book.id;
 
@@ -1406,31 +1575,26 @@
           existingEntry.photoUrl = finalPhotoUrl;
           existingEntry.photoDate = photoDate;
           closeModal();
+          renderApp();
+          await syncSaveEntry(existingEntry);
           showToast('구절 기록이 수정되었습니다.');
         } else {
-          state.entries.push({
+          const newEntry = {
             id: `entry-${Date.now()}`,
             bookId: book.id,
             authorId: state.activeUserId,
             photoUrl: finalPhotoUrl,
             photoDate,
             replies: [],
-          });
+            createdAt: Date.now(),
+          };
+          state.entries.push(newEntry);
           closeModal();
+          renderApp();
+          await syncSaveEntry(newEntry);
           showToast('구절 사진이 저장되었습니다.');
         }
-        renderApp();
       });
-    }
-
-    function openCaptureEntryModal(bookId) {
-      openEntryEditorModal({ bookId, existingEntry: null });
-    }
-
-    function openEditEntryModal(entryId) {
-      const entry = state.entries.find((item) => item.id === entryId);
-      if (!entry) return;
-      openEntryEditorModal({ bookId: entry.bookId, existingEntry: entry });
     }
 
     function openDeleteEntryModal(entryId) {
@@ -1439,222 +1603,127 @@
 
       openModal(`
         <div class="space-y-3">
-          <h3 class="text-base font-bold text-ink">이 구절 기록을 삭제할까요?</h3>
-          <p class="text-xs text-muted">삭제한 구절 사진과 달린 답글은 복구할 수 없습니다.</p>
+          <h3 class="font-serif text-lg font-bold text-ink">구절 기록을 삭제할까요?</h3>
+          <p class="text-xs text-muted leading-relaxed">
+            선택한 구절 사진과 남겨진 답글이 모두 삭제됩니다.
+          </p>
           <div class="flex gap-2 pt-2">
-            <button type="button" data-close-modal class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold">
-              취소
-            </button>
-            <button type="button" id="confirmDeleteEntryBtn" class="flex-1 py-2.5 rounded-2xl bg-rose-600 text-white text-sm font-semibold shadow-sm">
-              삭제하기
-            </button>
+            <button type="button" id="cancelDeleteEntryBtn" class="flex-1 py-2.5 rounded-2xl bg-amber-100/70 text-ink text-sm font-bold cursor-pointer">취소</button>
+            <button type="button" id="confirmDeleteEntryBtn" class="flex-1 py-2.5 rounded-2xl bg-red-600 text-white text-sm font-bold cursor-pointer">삭제하기</button>
           </div>
         </div>
       `);
 
-      document.getElementById('confirmDeleteEntryBtn').addEventListener('click', () => {
+      document.getElementById('cancelDeleteEntryBtn').addEventListener('click', closeModal);
+      document.getElementById('confirmDeleteEntryBtn').addEventListener('click', async () => {
         state.currentTab = 'home';
         state.selectedBookId = entry.bookId;
         state.entries = state.entries.filter((item) => item.id !== entryId);
         closeModal();
-        showToast('구절 기록이 삭제되었습니다.');
         renderApp();
+        await syncDeleteEntry(entryId);
+        showToast('구절 기록이 삭제되었습니다.');
       });
-    }
-
-    function openPhotoZoomModal(entryId) {
-      const entry = state.entries.find((item) => item.id === entryId);
-      if (!entry) return;
-      const author = getUserById(entry.authorId);
-
-      openModal(`
-        <div class="space-y-3">
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <p class="text-sm font-bold text-ink">${escapeXml(author.name)}의 구절 사진</p>
-              <p class="text-xs text-muted">${escapeXml(formatKoreanDate(entry.photoDate))}</p>
-            </div>
-            <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/70 text-muted font-bold">✕</button>
-          </div>
-          <div class="rounded-2xl overflow-hidden bg-stone-900 flex items-center justify-center">
-            <img src="${entry.photoUrl}" alt="확대된 구절 사진" class="max-h-[65vh] w-full object-contain" />
-          </div>
-        </div>
-      `);
     }
 
     /**
      * =========================================================================
-     * 9. 전역 이벤트 바인딩 (클릭 위임, 답글 폼, 네비게이션)
+     * 8. 전역 이벤트 바인딩 및 앱 시작
      * =========================================================================
      */
     function bindGlobalEvents() {
-      let longPressTimer = null;
-      let longPressTriggered = false;
+      const badgeBtn = document.getElementById('activeUserBadgeBtn');
+      const dropdown = document.getElementById('activeUserDropdown');
 
-      function clearLongPress() {
-        if (longPressTimer) {
-          clearTimeout(longPressTimer);
-          longPressTimer = null;
+      badgeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !badgeBtn.contains(e.target)) {
+          dropdown.classList.add('hidden');
         }
-      }
-
-      function beginBookLongPress(bookBtn) {
-        clearLongPress();
-        longPressTriggered = false;
-        const bookId = bookBtn.getAttribute('data-long-press-book');
-        const isOwner = bookBtn.getAttribute('data-long-press-owner') === 'true';
-        if (!bookId || !isOwner) return;
-
-        longPressTimer = setTimeout(() => {
-          longPressTriggered = true;
-          openDeleteBookModal(bookId);
-        }, 600);
-      }
-
-      // 터치 및 마우스 길게 누르기 감지
-      document.addEventListener(
-        'touchstart',
-        (e) => {
-          const bookBtn = e.target.closest('[data-long-press-book]');
-          if (!bookBtn) return;
-          beginBookLongPress(bookBtn);
-        },
-        { passive: true }
-      );
-
-      document.addEventListener('touchmove', () => {
-        clearLongPress();
       });
 
-      document.addEventListener('touchend', () => {
-        clearLongPress();
-      });
-
-      document.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        const bookBtn = e.target.closest('[data-long-press-book]');
-        if (!bookBtn) return;
-        beginBookLongPress(bookBtn);
-      });
-
-      document.addEventListener('mouseup', () => {
-        clearLongPress();
-      });
-
-      // 하단 탭 전환
       document.getElementById('navHomeBtn').addEventListener('click', () => {
         state.currentTab = 'home';
-        state.selectedBookId = null;
         renderApp();
       });
 
       document.getElementById('navSettingsBtn').addEventListener('click', () => {
         state.currentTab = 'settings';
-        state.selectedBookId = null;
         renderApp();
       });
 
-      // 헤더 뒤로가기
       document.getElementById('headerBackBtn').addEventListener('click', () => {
         state.selectedBookId = null;
+        state.currentTab = 'home';
         renderApp();
       });
 
-      // 맨 위 오른쪽 '현재 기록 중' 사용자 버튼 클릭 시 선택 메뉴 열기
-      document.getElementById('activeUserBadgeBtn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleActiveUserDropdown();
-      });
-
-      // 모달 바깥 클릭 닫기
       document.getElementById('modalBackdrop').addEventListener('click', (e) => {
         if (e.target.id === 'modalBackdrop') {
           closeModal();
         }
       });
 
-      // 동적 버튼 클릭 이벤트 위임
       document.addEventListener('click', (e) => {
-        const dropdown = document.getElementById('activeUserDropdown');
-        const badgeBtn = document.getElementById('activeUserBadgeBtn');
-        if (
-          dropdown &&
-          !dropdown.classList.contains('hidden') &&
-          !dropdown.contains(e.target) &&
-          !badgeBtn?.contains(e.target)
-        ) {
+        const selectUserBtn = e.target.closest('[data-select-active-user]');
+        if (selectUserBtn) {
+          const userId = selectUserBtn.getAttribute('data-select-active-user');
+          state.activeUserId = userId;
           dropdown.classList.add('hidden');
-        }
-
-        const pickHeaderUserBtn = e.target.closest('[data-pick-header-user]');
-        if (pickHeaderUserBtn) {
-          const uid = pickHeaderUserBtn.getAttribute('data-pick-header-user');
-          state.activeUserId = uid;
-          toggleActiveUserDropdown(false);
-          const u = getUserById(uid);
-          showToast(`현재 사용자가 "${u.name}"(으)로 변경되었습니다.`);
           renderApp();
+          showToast(`${getUserById(userId).name}님으로 전환되었습니다.`);
           return;
         }
 
-        const closeBtn = e.target.closest('[data-close-modal]');
-        if (closeBtn) {
-          closeModal();
-          return;
-        }
-
-        const selectActiveUserBtn = e.target.closest('[data-select-active-user]');
-        if (selectActiveUserBtn) {
-          const uid = selectActiveUserBtn.getAttribute('data-select-active-user');
-          state.activeUserId = uid;
-          const u = getUserById(uid);
-          showToast(`"${u.name}" 사용자로 전환되었습니다.`);
-          renderApp();
-          return;
-        }
-
-        const addBookBtn = e.target.closest('[data-add-book-for]');
+        const addBookBtn = e.target.closest('[data-add-book-for-user]');
         if (addBookBtn) {
-          const ownerId = addBookBtn.getAttribute('data-add-book-for');
-          if (ownerId !== state.activeUserId) {
-            showToast('본인의 책장에만 책을 추가할 수 있어요.');
-            return;
-          }
+          const ownerId = addBookBtn.getAttribute('data-add-book-for-user');
           openAddBookModal(ownerId);
+          return;
+        }
+
+        const deleteBookBtn = e.target.closest('[data-delete-book]');
+        if (deleteBookBtn) {
+          e.stopPropagation();
+          const bookId = deleteBookBtn.getAttribute('data-delete-book');
+          openDeleteBookModal(bookId);
           return;
         }
 
         const openBookBtn = e.target.closest('[data-open-book]');
         if (openBookBtn) {
-          if (longPressTriggered) {
-            longPressTriggered = false;
-            return;
-          }
           const bookId = openBookBtn.getAttribute('data-open-book');
-          state.currentTab = 'home';
           state.selectedBookId = bookId;
+          state.currentTab = 'home';
           renderApp();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
 
-        const captureBtn = e.target.closest('[data-open-capture-modal]');
-        if (captureBtn) {
-          const bookId = captureBtn.getAttribute('data-open-capture-modal');
-          const book = getBookById(bookId);
-          if (!book || book.ownerId !== state.activeUserId) {
-            showToast('해당 책장 주인만 구절 사진을 올릴 수 있어요.');
-            return;
-          }
-          openCaptureEntryModal(bookId);
+        const editCoverBtn = e.target.closest('[data-edit-book-cover]');
+        if (editCoverBtn) {
+          const bookId = editCoverBtn.getAttribute('data-edit-book-cover');
+          openEditBookCoverModal(bookId);
+          return;
+        }
+
+        const newEntryBtn = e.target.closest('[data-open-new-entry]');
+        if (newEntryBtn) {
+          const bookId = newEntryBtn.getAttribute('data-open-new-entry');
+          openEntryEditorModal(bookId, null);
           return;
         }
 
         const editEntryBtn = e.target.closest('[data-edit-entry]');
         if (editEntryBtn) {
           const entryId = editEntryBtn.getAttribute('data-edit-entry');
-          openEditEntryModal(entryId);
+          const entry = state.entries.find((item) => item.id === entryId);
+          if (entry) {
+            openEntryEditorModal(entry.bookId, entry);
+          }
           return;
         }
 
@@ -1664,23 +1733,9 @@
           openDeleteEntryModal(entryId);
           return;
         }
-
-        const zoomPhotoBtn = e.target.closest('[data-zoom-photo]');
-        if (zoomPhotoBtn) {
-          const entryId = zoomPhotoBtn.getAttribute('data-zoom-photo');
-          openPhotoZoomModal(entryId);
-          return;
-        }
-
-        const editBookCoverBtn = e.target.closest('[data-edit-book-cover]');
-        if (editBookCoverBtn) {
-          const bookId = editBookCoverBtn.getAttribute('data-edit-book-cover');
-          openEditBookCoverModal(bookId);
-        }
       });
 
-      // 답글 폼 제출 위임
-      document.addEventListener('submit', (e) => {
+      document.addEventListener('submit', async (e) => {
         const replyForm = e.target.closest('[data-reply-form]');
         if (!replyForm) return;
         e.preventDefault();
@@ -1701,15 +1756,16 @@
         });
 
         input.value = '';
-        showToast('답글이 등록되었습니다.');
         renderApp();
+        await syncUpdateEntryReplies(entry.id, entry.replies);
+        showToast('답글이 등록되었습니다.');
       });
     }
 
-    // 초기화 실행
     window.addEventListener('DOMContentLoaded', () => {
       bindGlobalEvents();
       renderApp();
+      initRealtimeSync();
     });
   </script>
 </body>
