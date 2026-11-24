@@ -160,7 +160,6 @@
       deleteDoc,
       onSnapshot,
       getDocs,
-      enableNetwork,
       collection,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -348,6 +347,23 @@
       return initialNow;
     }
 
+    function getSavedAlertedIds() {
+      let raw = '';
+      try {
+        raw = localStorage.getItem('readingmemo_alerted_event_ids') || '';
+      } catch (e) {}
+      if (!raw) {
+        raw = readCookieValue('readingmemo_alerted_event_ids');
+      }
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.map((id) => String(id)) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
     const persistedUser = getPersistedUserConfig();
 
     const state = {
@@ -364,52 +380,6 @@
       entries: [],
     };
 
-    function setFixedActiveUser(userId, locked = true) {
-      if (!userId) return;
-      state.activeUserId = userId;
-      state.isUserLocked = Boolean(locked);
-
-      try {
-        localStorage.setItem('readingmemo_active_user_id', state.activeUserId);
-        localStorage.setItem('readingmemo_user_locked', String(state.isUserLocked));
-      } catch (e) {}
-
-      writeCookieValue('readingmemo_active_user_id', state.activeUserId, 365);
-      writeCookieValue('readingmemo_user_locked', String(state.isUserLocked), 365);
-
-      try {
-        window.name = `READINGMEMO_USER:${JSON.stringify({
-          userId: state.activeUserId,
-          isLocked: state.isUserLocked,
-        })}`;
-      } catch (e) {}
-
-      savePrefToIdb('readingmemo_active_user_id', state.activeUserId);
-      savePrefToIdb('readingmemo_user_locked', String(state.isUserLocked));
-    }
-
-    function getCleanShareUrl() {
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('user');
-        url.hash = '';
-        return url.toString();
-      } catch (e) {
-        return window.location.href.split('#')[0];
-      }
-    }
-
-    function markLastSeenNow() {
-      const now = Date.now();
-      state.lastSeenAt = now;
-      try {
-        localStorage.setItem('readingmemo_last_seen_at', String(now));
-      } catch (e) {}
-      writeCookieValue('readingmemo_last_seen_at', String(now), 365);
-      savePrefToIdb('readingmemo_last_seen_at', now);
-      updateNewsBadgeUI();
-    }
-
     let initialBooksLoaded = false;
     let initialEntriesLoaded = false;
     let missedCatchupDone = false;
@@ -425,6 +395,67 @@
     const knownBookIds = new Set();
     const knownEntryIds = new Set();
     const knownReplyIds = new Set();
+    const alertedEventIds = new Set(getSavedAlertedIds());
+
+    function persistAlertedEventIds() {
+      const uniqueIds = Array.from(alertedEventIds).slice(-400);
+      const serialized = JSON.stringify(uniqueIds);
+      try {
+        localStorage.setItem('readingmemo_alerted_event_ids', serialized);
+      } catch (e) {}
+      writeCookieValue('readingmemo_alerted_event_ids', serialized, 365);
+      savePrefToIdb('readingmemo_alerted_event_ids', uniqueIds);
+    }
+
+    function markLastSeenNow() {
+      const now = Date.now();
+      const currentItems = collectActivityItems();
+      for (const item of currentItems) {
+        if (item?.id) {
+          alertedEventIds.add(String(item.id));
+        }
+      }
+      persistAlertedEventIds();
+
+      state.lastSeenAt = Math.max(Number(state.lastSeenAt || 0), now);
+      try {
+        localStorage.setItem('readingmemo_last_seen_at', String(state.lastSeenAt));
+      } catch (e) {}
+      writeCookieValue('readingmemo_last_seen_at', String(state.lastSeenAt), 365);
+      savePrefToIdb('readingmemo_last_seen_at', String(state.lastSeenAt));
+      updateNewsBadgeUI();
+    }
+
+    function getCleanShareUrl() {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('user');
+        url.hash = '';
+        return url.toString();
+      } catch (e) {
+        return window.location.origin + window.location.pathname;
+      }
+    }
+
+    function setFixedActiveUser(userId, lock = true) {
+      if (!userId) return;
+      state.activeUserId = userId;
+      state.isUserLocked = Boolean(lock);
+      try {
+        localStorage.setItem('readingmemo_active_user_id', state.activeUserId);
+        localStorage.setItem('readingmemo_user_locked', String(state.isUserLocked));
+      } catch (e) {}
+      writeCookieValue('readingmemo_active_user_id', state.activeUserId, 365);
+      writeCookieValue('readingmemo_user_locked', String(state.isUserLocked), 365);
+      try {
+        window.name = `READINGMEMO_USER:${JSON.stringify({
+          userId: state.activeUserId,
+          isLocked: state.isUserLocked,
+        })}`;
+      } catch (e) {}
+      savePrefToIdb('readingmemo_active_user_id', state.activeUserId);
+      savePrefToIdb('readingmemo_user_locked', String(state.isUserLocked));
+    }
 
     function cleanupRealtimeListeners() {
       if (resubscribeTimer !== null) {
@@ -514,7 +545,6 @@
             renderApp();
           },
           (error) => {
-            console.warn('users 구독 일시 지연:', error?.message || error);
             if (String(error?.message || '').includes('Target ID already exists')) {
               scheduleSafeResubscribe();
             }
@@ -533,7 +563,6 @@
             checkMissedActivitySinceLastVisit();
           },
           (error) => {
-            console.warn('books 구독 일시 지연:', error?.message || error);
             if (String(error?.message || '').includes('Target ID already exists')) {
               scheduleSafeResubscribe();
             }
@@ -552,7 +581,6 @@
             checkMissedActivitySinceLastVisit();
           },
           (error) => {
-            console.warn('entries 구독 일시 지연:', error?.message || error);
             if (String(error?.message || '').includes('Target ID already exists')) {
               scheduleSafeResubscribe();
             }
@@ -602,6 +630,7 @@
         const savedUserId = await loadPrefFromIdb('readingmemo_active_user_id');
         const savedLocked = await loadPrefFromIdb('readingmemo_user_locked');
         const savedLastSeen = Number(await loadPrefFromIdb('readingmemo_last_seen_at') || '0');
+        const savedAlerted = await loadPrefFromIdb('readingmemo_alerted_event_ids');
 
         if (!state.activeUserId && savedUserId) {
           state.activeUserId = savedUserId;
@@ -615,6 +644,10 @@
             localStorage.setItem('readingmemo_last_seen_at', String(savedLastSeen));
           } catch (e) {}
           writeCookieValue('readingmemo_last_seen_at', String(savedLastSeen), 365);
+        }
+        if (Array.isArray(savedAlerted) && savedAlerted.length > 0) {
+          savedAlerted.forEach((id) => alertedEventIds.add(String(id)));
+          persistAlertedEventIds();
         }
         if (state.activeUserId) {
           setFixedActiveUser(state.activeUserId, state.isUserLocked);
@@ -848,10 +881,11 @@
       const items = [];
 
       for (const book of state.books) {
+        const actId = `act-book-${book.id}`;
         const ts = Number(book.createdAt || 0);
         const actor = getUserById(book.ownerId);
         items.push({
-          id: `act-book-${book.id}`,
+          id: actId,
           type: 'book',
           ts,
           actorId: book.ownerId,
@@ -859,7 +893,14 @@
           bookId: book.id,
           bookTitle: book.title || '제목 없는 책',
           summary: `${actor.name}님이 "${book.title || '제목 없는 책'}" 책을 책장에 꽂았어요.`,
-          dateLabel: book.createdAt ? new Date(book.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+          dateLabel: book.createdAt
+            ? new Date(book.createdAt).toLocaleString('ko-KR', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '',
         });
       }
 
@@ -867,10 +908,11 @@
         const book = state.books.find((b) => b.id === entry.bookId);
         const bookTitle = book ? book.title : '책';
         const actor = getUserById(entry.authorId);
-        const entryTs = Number(entry.createdAt || 0);
+        const entryTs = getEntrySortTimestamp(entry);
+        const entryActId = `act-entry-${entry.id}`;
 
         items.push({
-          id: `act-entry-${entry.id}`,
+          id: entryActId,
           type: 'entry',
           ts: entryTs,
           actorId: entry.authorId,
@@ -883,11 +925,12 @@
 
         const replies = Array.isArray(entry.replies) ? entry.replies : [];
         replies.forEach((rep, idx) => {
+          const replyActId = `act-reply-${entry.id}-${rep.id || idx}`;
           const repActor = getUserById(rep.authorId);
           const idMatch = String(rep.id || '').match(/(\d{10,})/);
-          const repTs = idMatch ? Number(idMatch[1]) : (entryTs + idx + 1);
+          const repTs = idMatch ? Number(idMatch[1]) : entryTs + idx + 1;
           items.push({
-            id: `act-reply-${entry.id}-${rep.id || idx}`,
+            id: replyActId,
             type: 'reply',
             ts: repTs,
             actorId: rep.authorId,
@@ -906,7 +949,12 @@
 
     function getUnreadActivityCount() {
       const items = collectActivityItems();
-      return items.filter((item) => item.actorId !== state.activeUserId && item.ts > state.lastSeenAt).length;
+      return items.filter(
+        (item) =>
+          item.actorId !== state.activeUserId &&
+          item.ts > Number(state.lastSeenAt || 0) &&
+          !alertedEventIds.has(String(item.id))
+      ).length;
     }
 
     function updateNewsBadgeUI() {
@@ -922,8 +970,8 @@
     }
 
     function openNewsFeedModal() {
-      markLastSeenNow();
       const items = collectActivityItems().slice(0, 30);
+      markLastSeenNow();
 
       const listHtml = items.length
         ? items
@@ -933,7 +981,7 @@
                 <button
                   type="button"
                   data-jump-book="${escapeHtml(item.bookId)}"
-                  class="w-full text-left rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/50 p-3 transition flex items-start gap-2.5 cursor-pointer"
+                  class="w-full text-left flex items-start gap-2.5 rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/50 p-3 transition cursor-pointer"
                 >
                   <span class="text-base leading-none mt-0.5 shrink-0">${icon}</span>
                   <div class="min-w-0 flex-1">
@@ -981,8 +1029,16 @@
       });
     }
 
-    function notifyIncomingEvent({ actorId, title, body, bookId }) {
+    function notifyIncomingEvent({ eventId = '', actorId, title, body, bookId, eventTs = 0 }) {
       if (!actorId || actorId === state.activeUserId) return;
+      if (eventTs && Number(eventTs) <= Number(state.lastSeenAt || 0)) return;
+      if (eventId && alertedEventIds.has(String(eventId))) return;
+
+      if (eventId) {
+        alertedEventIds.add(String(eventId));
+        persistAlertedEventIds();
+      }
+
       playNotificationChime();
       showToast(`🔔 ${body}`);
       triggerBrowserNotification(title, body, () => {
@@ -1108,7 +1164,6 @@
         await setDoc(getPublicDoc('users', userObj.id), userObj);
       } catch (err) {
         console.error('사용자 저장 오류:', err);
-        showToast('클라우드 동기화에 실패했습니다.');
       }
     }
 
@@ -1118,7 +1173,6 @@
         await setDoc(getPublicDoc('books', bookObj.id), bookObj);
       } catch (err) {
         console.error('책 저장 오류:', err);
-        showToast('책 저장 중 동기화 오류가 발생했습니다.');
       }
     }
 
@@ -1131,7 +1185,6 @@
         }
       } catch (err) {
         console.error('책 삭제 오류:', err);
-        showToast('책 삭제 중 동기화 오류가 발생했습니다.');
       }
     }
 
@@ -1141,7 +1194,6 @@
         await setDoc(getPublicDoc('entries', entryObj.id), entryObj);
       } catch (err) {
         console.error('구절 저장 오류:', err);
-        showToast('구절 저장 중 동기화 오류가 발생했습니다.');
       }
     }
 
@@ -1151,7 +1203,6 @@
         await updateDoc(getPublicDoc('entries', entryId), { replies });
       } catch (err) {
         console.error('답글 업데이트 오류:', err);
-        showToast('답글 저장 중 동기화 오류가 발생했습니다.');
       }
     }
 
@@ -1161,7 +1212,6 @@
         await deleteDoc(getPublicDoc('entries', entryId));
       } catch (err) {
         console.error('구절 삭제 오류:', err);
-        showToast('구절 삭제 중 동기화 오류가 발생했습니다.');
       }
     }
 
@@ -1183,10 +1233,12 @@
             knownBookIds.add(book.id);
             const actor = getUserById(book.ownerId);
             notifyIncomingEvent({
+              eventId: `act-book-${book.id}`,
               actorId: book.ownerId,
               title: '새 책이 책장에 추가되었어요',
               body: `${actor.name}님이 "${book.title}" 책을 추가했습니다.`,
               bookId: book.id,
+              eventTs: book.createdAt,
             });
           }
         }
@@ -1221,15 +1273,18 @@
         for (const entry of loadedEntries) {
           const book = state.books.find((b) => b.id === entry.bookId);
           const bookTitle = book ? book.title : '책';
+          const entryTs = getEntrySortTimestamp(entry);
 
           if (!knownEntryIds.has(entry.id)) {
             knownEntryIds.add(entry.id);
             const actor = getUserById(entry.authorId);
             notifyIncomingEvent({
+              eventId: `act-entry-${entry.id}`,
               actorId: entry.authorId,
               title: '새 구절 사진이 올라왔어요',
               body: `${actor.name}님이 "${bookTitle}"에 새 구절을 남겼습니다.`,
               bookId: entry.bookId,
+              eventTs: entryTs,
             });
           }
 
@@ -1239,11 +1294,15 @@
             if (!knownReplyIds.has(key)) {
               knownReplyIds.add(key);
               const repActor = getUserById(rep.authorId);
+              const idMatch = String(rep.id || '').match(/(\d{10,})/);
+              const repTs = idMatch ? Number(idMatch[1]) : entryTs + idx + 1;
               notifyIncomingEvent({
+                eventId: `act-reply-${entry.id}-${rep.id || idx}`,
                 actorId: rep.authorId,
                 title: '새 답글이 달렸어요',
                 body: `${repActor.name}님이 "${bookTitle}" 구절에 답글을 남겼습니다.`,
                 bookId: entry.bookId,
+                eventTs: repTs,
               });
             }
           });
@@ -1559,13 +1618,13 @@
       const LONG_PRESS_MS = 550;
       container.querySelectorAll('[data-open-book]').forEach((btn) => {
         const bookId = btn.getAttribute('data-open-book');
-        const canLongPressDelete = Boolean(btn.getAttribute('data-long-press-book'));
+        const longPressBookId = btn.getAttribute('data-long-press-book');
         let pressTimer = null;
-        let longPressTriggered = false;
         let startX = 0;
         let startY = 0;
+        let didLongPress = false;
 
-        const clearPressTimer = () => {
+        const clearPressState = () => {
           if (pressTimer !== null) {
             clearTimeout(pressTimer);
             pressTimer = null;
@@ -1574,23 +1633,25 @@
         };
 
         const beginPress = (clientX, clientY) => {
-          longPressTriggered = false;
+          didLongPress = false;
           startX = clientX;
           startY = clientY;
-          clearPressTimer();
-          if (!canLongPressDelete) return;
+          clearPressState();
+
+          if (!longPressBookId) return;
           btn.classList.add('long-press-active');
           pressTimer = setTimeout(() => {
-            longPressTriggered = true;
+            pressTimer = null;
+            didLongPress = true;
             btn.classList.remove('long-press-active');
-            openDeleteBookModal(bookId);
+            openDeleteBookModal(longPressBookId);
           }, LONG_PRESS_MS);
         };
 
-        const trackMove = (clientX, clientY) => {
-          if (pressTimer === null) return;
+        const checkMoveCancel = (clientX, clientY) => {
+          if (!pressTimer) return;
           if (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10) {
-            clearPressTimer();
+            clearPressState();
           }
         };
 
@@ -1598,41 +1659,45 @@
           if (e.pointerType === 'mouse' && e.button !== 0) return;
           beginPress(e.clientX, e.clientY);
         });
+
         btn.addEventListener('pointermove', (e) => {
-          trackMove(e.clientX, e.clientY);
+          checkMoveCancel(e.clientX, e.clientY);
         });
+
         btn.addEventListener('pointerup', () => {
-          clearPressTimer();
+          clearPressState();
         });
+
         btn.addEventListener('pointercancel', () => {
-          clearPressTimer();
+          clearPressState();
         });
+
         btn.addEventListener('touchstart', (e) => {
-          const touch = e.touches && e.touches[0];
+          const touch = e.touches?.[0];
           if (touch) beginPress(touch.clientX, touch.clientY);
         }, { passive: true });
+
         btn.addEventListener('touchmove', (e) => {
-          const touch = e.touches && e.touches[0];
-          if (touch) trackMove(touch.clientX, touch.clientY);
+          const touch = e.touches?.[0];
+          if (touch) checkMoveCancel(touch.clientX, touch.clientY);
         }, { passive: true });
+
         btn.addEventListener('touchend', () => {
-          clearPressTimer();
+          clearPressState();
         });
+
         btn.addEventListener('touchcancel', () => {
-          clearPressTimer();
+          clearPressState();
         });
-        btn.addEventListener('contextmenu', (e) => {
-          if (canLongPressDelete) {
-            e.preventDefault();
-          }
-        });
+
         btn.addEventListener('click', (e) => {
-          if (longPressTriggered) {
+          if (didLongPress) {
             e.preventDefault();
             e.stopPropagation();
-            longPressTriggered = false;
+            didLongPress = false;
             return;
           }
+          if (!bookId) return;
           state.selectedBookId = bookId;
           renderApp();
         });
@@ -2063,7 +2128,7 @@
         if (ok) {
           showToast('공유 링크가 복사되었습니다!');
         } else {
-          showToast('링크를 길게 눌러 직접 복사해주세요.');
+          showToast('공유 링크 복사에 실패했습니다. 주소를 직접 복사해주세요.');
         }
       });
 
@@ -2247,6 +2312,8 @@
           createdAt: Date.now(),
         };
         knownBookIds.add(newBook.id);
+        alertedEventIds.add(`act-book-${newBook.id}`);
+        persistAlertedEventIds();
         state.books.push(newBook);
         closeModal();
         renderApp();
@@ -2695,6 +2762,8 @@
             createdAt: Date.now(),
           };
           knownEntryIds.add(newEntry.id);
+          alertedEventIds.add(`act-entry-${newEntry.id}`);
+          persistAlertedEventIds();
           state.entries.push(newEntry);
           closeModal();
           renderApp();
@@ -2739,12 +2808,29 @@
     }
 
     function bindGlobalEvents() {
-      document.getElementById('navHomeBtn')?.addEventListener('click', () => {
+      const goHomeView = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        closeModal();
+        document.getElementById('activeUserDropdown')?.classList.add('hidden');
         state.currentTab = 'home';
+        state.selectedBookId = null;
         renderApp();
-      });
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      };
 
-      document.getElementById('navSettingsBtn')?.addEventListener('click', () => {
+      const navHomeBtn = document.getElementById('navHomeBtn');
+      if (navHomeBtn) {
+        navHomeBtn.addEventListener('click', goHomeView);
+        navHomeBtn.addEventListener('touchend', goHomeView, { passive: false });
+      }
+
+      document.getElementById('navSettingsBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeModal();
+        document.getElementById('activeUserDropdown')?.classList.add('hidden');
         state.currentTab = 'settings';
         state.selectedBookId = null;
         renderApp();
@@ -2835,6 +2921,8 @@
           date: getTodayDateStr(),
         };
         knownReplyIds.add(`${entry.id}:${newReply.id}`);
+        alertedEventIds.add(`act-reply-${entry.id}-${newReply.id}`);
+        persistAlertedEventIds();
         entry.replies = [...(entry.replies || []), newReply];
 
         input.value = '';
