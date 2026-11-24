@@ -88,29 +88,28 @@
           <button
             id="newsFeedBtn"
             type="button"
-            class="relative flex items-center gap-1 bg-amber-100/80 hover:bg-amber-200/80 active:scale-95 border border-amber-900/15 rounded-xl px-2.5 py-1.5 text-xs font-bold text-ink transition cursor-pointer"
+            class="h-9 flex items-center gap-1.5 bg-surface hover:bg-amber-100/70 active:scale-95 border border-amber-900/20 rounded-2xl px-2.5 text-xs font-bold text-ink shadow-2xs transition cursor-pointer shrink-0"
             aria-label="새소식 보기"
           >
-            <span>🔔</span>
-            <span>새소식</span>
+            <span class="text-xs leading-none">🔔</span>
+            <span class="leading-none">새소식</span>
             <span
               id="newsBadgeCount"
-              class="hidden min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold items-center justify-center leading-none"
+              class="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums"
             >0</span>
           </button>
 
           <!-- 현재 기록하는 사용자 (기기별 고정 잠금 지원) -->
-          <div class="flex flex-col items-end shrink-0 relative">
-            <span id="activeUserStatusHint" class="text-[10px] font-semibold text-muted leading-none mb-0.5">내 기기 고정됨</span>
+          <div class="relative shrink-0">
             <button
               id="activeUserBadgeBtn"
               type="button"
-              class="flex items-center gap-1.5 bg-surface hover:bg-amber-100/70 active:scale-95 border border-amber-900/20 rounded-b-xl rounded-t-md px-2.5 py-1 shadow-2xs transition cursor-pointer"
+              class="h-9 flex items-center gap-1.5 bg-surface hover:bg-amber-100/70 active:scale-95 border border-amber-900/20 rounded-2xl px-2.5 text-xs font-bold text-ink shadow-2xs transition cursor-pointer shrink-0"
               aria-label="현재 기록 중인 사용자 고정 및 변경"
             >
-              <span id="activeUserDot" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              <span id="activeUserLabel" class="text-xs font-bold text-ink">뀨뀨</span>
-              <span id="activeUserLockIcon" class="text-[10px] text-muted">🔒</span>
+              <span id="activeUserDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+              <span id="activeUserLabel" class="leading-none">뀨뀨</span>
+              <span id="activeUserLockIcon" class="text-[11px] leading-none text-muted">🔒</span>
             </button>
 
             <!-- 사용자 선택/잠금 해제 팝오버 -->
@@ -928,56 +927,38 @@
         (item) => Number(item.timestamp || 0) > since
       ).length;
 
+      badgeEl.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('inline-flex');
       if (unreadCount > 0) {
-        badgeEl.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
-        badgeEl.classList.remove('hidden');
-        badgeEl.classList.add('inline-flex');
+        badgeEl.className =
+          'min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent text-white text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums shadow-2xs';
       } else {
-        badgeEl.classList.add('hidden');
-        badgeEl.classList.remove('inline-flex');
+        badgeEl.className =
+          'min-w-[20px] h-[20px] px-1.5 rounded-full bg-amber-900/15 text-muted text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums';
       }
     }
 
     function openNewsFeedModal() {
-      const since = state.lastSeenAt || 0;
-      const items = getRecentActivityItems().slice(0, 30);
-      markLastSeenNow();
-      updateNewsBadgeUI();
-
+      const items = getRecentActivityItems();
       const listHtml =
         items.length === 0
-          ? `
-            <div class="rounded-2xl bg-paper border border-dashed border-amber-900/20 p-6 text-center space-y-1">
-              <p class="text-sm font-bold text-ink">아직 도착한 새소식이 없어요</p>
-              <p class="text-xs text-muted">다른 멤버가 새 책, 구절, 답글을 남기면 여기에 모여요.</p>
-            </div>
-          `
+          ? `<div class="text-center py-8 text-xs text-muted">아직 올라온 새 소식이 없어요.</div>`
           : items
               .map((item) => {
-                const isUnread = Number(item.timestamp || 0) > since;
-                const icon = item.type === 'book' ? '📚' : item.type === 'entry' ? '📸' : '💬';
+                const icon =
+                  item.type === 'book' ? '📚' : item.type === 'entry' ? '✍️' : '💬';
                 return `
                   <button
                     type="button"
-                    data-jump-news-book="${item.bookId}"
-                    class="w-full text-left rounded-2xl p-3 border transition flex items-start justify-between gap-2 ${
-                      isUnread
-                        ? 'bg-accentSoft/60 border-accent/40 hover:bg-accentSoft'
-                        : 'bg-paper border-amber-900/10 hover:bg-amber-100/60'
-                    }"
+                    data-jump-news-book="${escapeHtml(item.bookId || '')}"
+                    class="w-full text-left rounded-2xl bg-paper hover:bg-amber-100/70 border border-amber-900/10 p-3 flex items-start gap-2.5 transition cursor-pointer"
                   >
-                    <div class="flex items-start gap-2.5 min-w-0">
-                      <span class="text-base shrink-0 mt-0.5">${icon}</span>
-                      <div class="min-w-0">
-                        <p class="text-xs font-bold text-ink leading-snug break-words">${escapeHtml(item.summary)}</p>
-                        <p class="text-[11px] text-muted mt-0.5">${escapeHtml(item.dateLabel)}</p>
-                      </div>
+                    <span class="text-base leading-none mt-0.5">${icon}</span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs font-bold text-ink leading-snug">${escapeHtml(item.summary)}</p>
+                      <p class="text-[11px] text-muted mt-0.5">${escapeHtml(item.dateLabel)}</p>
                     </div>
-                    ${
-                      isUnread
-                        ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent text-white">NEW</span>`
-                        : `<span class="shrink-0 text-xs text-muted">→</span>`
-                    }
                   </button>
                 `;
               })
@@ -986,31 +967,50 @@
       openModal(`
         <div class="flex items-center justify-between">
           <div>
-            <span class="text-xs font-semibold text-accent">실시간 활동 피드</span>
-            <h3 class="font-serif text-lg font-bold text-ink">🔔 새소식</h3>
+            <span class="text-xs font-semibold text-accent">🔔 새소식 모아보기</span>
+            <h3 class="font-serif text-lg font-bold text-ink">최근 올라온 기록</h3>
           </div>
           <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
         </div>
 
-        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-0.5">
+        <div class="space-y-2 max-h-80 overflow-y-auto pr-0.5">
           ${listHtml}
+        </div>
+
+        <div class="pt-1 flex items-center gap-2">
+          <button type="button" id="markAllNewsReadBtn" class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5">
+            모두 읽음 처리
+          </button>
+          <button type="button" data-close-modal class="flex-1 rounded-2xl bg-accent text-white text-xs font-bold py-2.5">
+            닫기
+          </button>
         </div>
       `);
 
+      markLastSeenNow();
+      updateNewsBadgeUI();
+
       const modalCard = document.getElementById('modalCard');
-      modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
+      modalCard?.querySelectorAll('[data-close-modal]').forEach((btn) => {
         btn.addEventListener('click', closeModal);
       });
-
-      modalCard.querySelectorAll('[data-jump-news-book]').forEach((btn) => {
+      document.getElementById('markAllNewsReadBtn')?.addEventListener('click', () => {
+        markLastSeenNow();
+        updateNewsBadgeUI();
+        closeModal();
+        showToast('새소식을 모두 읽음으로 표시했어요.');
+      });
+      modalCard?.querySelectorAll('[data-jump-news-book]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const targetBookId = btn.getAttribute('data-jump-news-book');
+          const bookId = btn.getAttribute('data-jump-news-book');
           closeModal();
-          if (targetBookId && state.books.some((b) => b.id === targetBookId)) {
-            state.currentTab = 'home';
-            state.selectedBookId = targetBookId;
-            renderApp();
+          state.currentTab = 'home';
+          if (bookId && state.books.some((b) => b.id === bookId)) {
+            state.selectedBookId = bookId;
+          } else {
+            state.selectedBookId = null;
           }
+          renderApp();
         });
       });
     }
@@ -1031,352 +1031,274 @@
         labelEl.textContent = activeUser.name;
       }
       if (lockIconEl) {
-        lockIconEl.textContent = state.isUserLocked ? '🔒' : '▾';
+        lockIconEl.textContent = state.isUserLocked ? '🔒' : '🔓';
       }
       if (statusHintEl) {
-        statusHintEl.textContent = state.isUserLocked ? '내 기기 고정됨' : '사용자 선택';
+        statusHintEl.textContent = state.isUserLocked ? '내 기기 고정됨' : '사용자 선택 중';
       }
-
       if (dropdownEl) {
-        if (state.isUserLocked) {
-          dropdownEl.innerHTML = `
-            <div class="px-3 py-1.5 text-[11px] font-semibold text-muted border-b border-amber-900/10">
-              이 기기는 <b>${escapeHtml(activeUser.name)}</b>님으로 고정됨
-            </div>
-            <button
-              type="button"
-              id="unlockActiveUserBtn"
-              class="w-full text-left px-3 py-2 text-xs font-semibold text-accent hover:bg-amber-100/70 transition flex items-center gap-1.5"
-            >
-              <span>🔓</span>
-              <span>잠금 해제 후 변경하기</span>
-            </button>
-          `;
-        } else {
-          dropdownEl.innerHTML = `
-            <div class="px-3 py-1 text-[11px] font-semibold text-muted border-b border-amber-900/10">
-              이 기기 사용자로 고정
-            </div>
-            ${state.users
-              .map((u) => {
-                const p = getPaletteForUser(u);
-                const isSelected = u.id === state.activeUserId;
-                return `
-                  <button
-                    type="button"
-                    data-select-active-user="${u.id}"
-                    class="w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-amber-100/70 transition ${
-                      isSelected ? 'font-bold text-accent bg-accentSoft/60' : 'text-ink'
-                    }"
-                  >
-                    <span class="flex items-center gap-2">
-                      <span class="w-2.5 h-2.5 rounded-full ${p.dot}"></span>
-                      <span>${escapeHtml(u.name)}</span>
-                    </span>
-                    ${isSelected ? '<span>🔒</span>' : ''}
-                  </button>
-                `;
-              })
-              .join('')}
-          `;
-        }
+        const usersOptionsHtml = state.users
+          .map((u) => {
+            const p = getPaletteForUser(u);
+            const isSelected = u.id === state.activeUserId;
+            return `
+              <button
+                type="button"
+                data-select-active-user="${escapeHtml(u.id)}"
+                class="w-full px-3 py-2 text-left text-xs flex items-center justify-between transition ${
+                  state.isUserLocked
+                    ? 'opacity-60 cursor-pointer hover:bg-amber-100/50'
+                    : isSelected
+                    ? 'bg-accentSoft font-bold text-accent cursor-pointer'
+                    : 'hover:bg-amber-100/70 text-ink cursor-pointer'
+                }"
+              >
+                <span class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full ${p.dot}"></span>
+                  <span>${escapeHtml(u.name)}</span>
+                </span>
+                <span>${isSelected ? '✓' : ''}</span>
+              </button>
+            `;
+          })
+          .join('');
+
+        dropdownEl.innerHTML = `
+          <div class="px-3 py-1 border-b border-amber-900/10 flex items-center justify-between gap-1">
+            <span class="text-[11px] font-bold text-muted">${
+              state.isUserLocked ? '🔒 기기 고정 중' : '🔓 변경 가능'
+            }</span>
+            ${
+              state.isUserLocked
+                ? `<button type="button" id="unlockActiveUserBtn" class="text-[11px] font-bold text-accent hover:underline cursor-pointer">잠금 해제</button>`
+                : ''
+            }
+          </div>
+          <div class="py-1">${usersOptionsHtml}</div>
+        `;
       }
-    }
-
-    function renderApp() {
-      const mainContent = document.getElementById('mainContent');
-      const headerTitle = document.getElementById('headerTitle');
-      const headerSubtitle = document.getElementById('headerSubtitle');
-      const backBtn = document.getElementById('headerBackBtn');
-      const navHomeBtn = document.getElementById('navHomeBtn');
-      const navSettingsBtn = document.getElementById('navSettingsBtn');
-
-      renderActiveUserBadge();
-      updateNewsBadgeUI();
-
-      if (state.currentTab === 'home') {
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-      } else {
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-      }
-
-      if (state.currentTab === 'settings') {
-        backBtn.classList.add('hidden');
-        backBtn.classList.remove('flex');
-        headerTitle.textContent = '설정 및 멤버 관리';
-        headerSubtitle.textContent = '함께 기록하는 멤버와 알림을 관리하세요';
-        renderSettingsView(mainContent);
-        return;
-      }
-
-      if (state.selectedBookId) {
-        const book = state.books.find((b) => b.id === state.selectedBookId);
-        if (!book) {
-          state.selectedBookId = null;
-        } else {
-          const owner = getUserById(book.ownerId);
-          backBtn.classList.remove('hidden');
-          backBtn.classList.add('flex');
-          headerTitle.textContent = book.title;
-          headerSubtitle.textContent = `${owner.name}의 책장${book.author ? ` · ${book.author}` : ''}`;
-          renderBookDetailView(mainContent, book);
-          return;
-        }
-      }
-
-      backBtn.classList.add('hidden');
-      backBtn.classList.remove('flex');
-      headerTitle.textContent = '우리의 독서메모';
-      headerSubtitle.textContent = state.cloudConnected
-        ? '실시간 동기화 중 · 함께 남기는 책장'
-        : '소중한 문장과 사진을 함께 남기는 책장';
-      renderHomeView(mainContent);
     }
 
     function renderHomeView(container) {
+      const selectedBook = state.selectedBookId
+        ? state.books.find((b) => b.id === state.selectedBookId)
+        : null;
+      if (state.selectedBookId && !selectedBook) {
+        state.selectedBookId = null;
+      }
+      if (selectedBook) {
+        renderBookFeedView(container, selectedBook);
+      } else {
+        renderBookshelfHome(container);
+      }
+    }
+
+    function renderBookshelfHome(container) {
       const shelvesHtml = state.users
         .map((user) => {
           const palette = getPaletteForUser(user);
-          const userBooks = state.books.filter((b) => b.ownerId === user.id);
           const isMyShelf = user.id === state.activeUserId;
+          const userBooks = state.books.filter((b) => b.ownerId === user.id);
 
-          const booksGridHtml =
-            userBooks.length === 0
-              ? `
-                <div class="rounded-2xl border border-dashed border-amber-900/20 bg-paper/70 py-6 px-4 text-center">
-                  <p class="text-sm text-muted">아직 꽂힌 책이 없어요.</p>
+          const bookCardsHtml = userBooks
+            .map((book) => {
+              const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
+              const coverVisual = book.coverImage
+                ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(
+                    book.title
+                  )}" class="w-full h-full object-cover" />`
+                : `
+                  <div class="w-full h-full flex flex-col justify-between p-2.5 ${palette.bg} ${palette.text} book-spine-edge">
+                    <span class="text-[10px] font-bold opacity-75 truncate">${escapeHtml(
+                      user.name
+                    )}</span>
+                    <span class="font-serif text-xs font-bold leading-snug line-clamp-3">${escapeHtml(
+                      book.title
+                    )}</span>
+                    <span class="text-[10px] opacity-75 truncate">${escapeHtml(
+                      book.author || '지은이 미상'
+                    )}</span>
+                  </div>
+                `;
+
+              return `
+                <div class="relative group shrink-0 w-24">
+                  <button
+                    type="button"
+                    data-open-book="${escapeHtml(book.id)}"
+                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 transition text-left block bg-surface cursor-pointer"
+                  >
+                    ${coverVisual}
+                  </button>
                   ${
                     isMyShelf
-                      ? `<p class="text-xs text-muted/80 mt-0.5">오른쪽 위 <b>+ 책 추가</b>로 첫 책을 꽂아보세요!</p>`
-                      : `<p class="text-xs text-muted/80 mt-0.5">${escapeHtml(user.name)}님이 책을 추가하면 여기에 표시돼요.</p>`
+                      ? `
+                    <button
+                      type="button"
+                      data-delete-book="${escapeHtml(book.id)}"
+                      aria-label="${escapeHtml(book.title)} 삭제"
+                      class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-amber-900/20 text-muted hover:text-red-600 text-xs font-bold flex items-center justify-center shadow-xs cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  `
+                      : ''
                   }
+                  <p class="mt-1.5 text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
+                  <p class="text-[11px] text-muted truncate">구절 ${entryCount}개</p>
                 </div>
-              `
-              : `
-                <div class="grid grid-cols-3 gap-3">
-                  ${userBooks
-                    .map((book) => {
-                      const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
-                      const isOwner = canManageBook(book);
-                      return `
-                        <div class="group relative flex flex-col">
-                          <button
-                            type="button"
-                            data-open-book="${book.id}"
-                            class="w-full text-left focus:outline-none"
-                          >
-                            <div class="relative aspect-[2/3] w-full rounded-r-xl rounded-l-sm overflow-hidden bg-amber-100 book-spine-edge border border-amber-900/15 transition-transform duration-150 group-hover:-translate-y-1">
-                              ${
-                                book.coverImage
-                                  ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)}" class="w-full h-full object-cover" />`
-                                  : `
-                                    <div class="w-full h-full p-2.5 flex flex-col justify-between bg-gradient-to-br from-amber-50 to-orange-100/80">
-                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-accent/80">BOOK</span>
-                                      <p class="font-serif text-xs font-bold text-ink line-clamp-3 leading-snug">${escapeHtml(book.title)}</p>
-                                      <p class="text-[10px] text-muted truncate">${escapeHtml(book.author || '')}</p>
-                                    </div>
-                                  `
-                              }
-                              <span class="absolute bottom-1.5 right-1.5 rounded-full bg-ink/80 text-white text-[10px] font-semibold px-2 py-0.5">
-                                ${entryCount}장
-                              </span>
-                            </div>
-                            <p class="mt-1.5 text-xs font-semibold text-ink line-clamp-1 leading-tight">${escapeHtml(book.title)}</p>
-                            ${
-                              book.author
-                                ? `<p class="text-[11px] text-muted truncate">${escapeHtml(book.author)}</p>`
-                                : ''
-                            }
-                          </button>
-
-                          ${
-                            isOwner
-                              ? `
-                                <button
-                                  type="button"
-                                  data-delete-book="${book.id}"
-                                  title="내 책 삭제"
-                                  aria-label="${escapeHtml(book.title)} 삭제"
-                                  class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-amber-900/15 text-muted hover:text-red-600 hover:border-red-300 shadow-xs flex items-center justify-center text-xs transition"
-                                >
-                                  ×
-                                </button>
-                              `
-                              : ''
-                          }
-                        </div>
-                      `;
-                    })
-                    .join('')}
-                </div>
-                <div class="shelf-ledge mt-3"></div>
               `;
+            })
+            .join('');
 
           return `
-            <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
+            <section class="rounded-3xl bg-surface/90 border border-amber-900/10 p-4 shadow-2xs space-y-3">
               <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-9 h-9 rounded-2xl ${palette.bg} ${palette.text} flex items-center justify-center font-bold text-sm shrink-0">
-                    ${escapeHtml(user.name.slice(0, 1))}
-                  </div>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(user.name)}의 책장</h2>
-                      ${
-                        isMyShelf
-                          ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accentSoft text-accent">내 책장</span>`
-                          : ''
-                      }
-                    </div>
-                    <p class="text-xs text-muted">총 ${userBooks.length}권의 책</p>
-                  </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-3 h-3 rounded-full ${palette.dot} shrink-0"></span>
+                  <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(
+                    user.name
+                  )}의 책장</h2>
+                  <span class="text-xs text-muted shrink-0">(${userBooks.length}권)</span>
                 </div>
-
                 ${
                   isMyShelf
                     ? `
-                      <button
-                        type="button"
-                        data-open-add-book="${user.id}"
-                        class="shrink-0 rounded-2xl bg-accent hover:bg-accent/90 active:scale-95 text-white text-xs font-semibold px-3.5 py-2 shadow-xs transition"
-                      >
-                        + 책 추가
-                      </button>
-                    `
-                    : `<span class="text-[11px] font-semibold text-muted/80 px-2.5 py-1 rounded-xl bg-amber-100/50">구경하기</span>`
+                  <button
+                    type="button"
+                    data-open-add-book="${escapeHtml(user.id)}"
+                    class="shrink-0 rounded-2xl bg-accentSoft hover:bg-accent/20 text-accent text-xs font-bold px-3 py-1.5 transition cursor-pointer"
+                  >
+                    + 책 추가
+                  </button>
+                `
+                    : `<span class="text-[11px] text-muted shrink-0">읽기 전용</span>`
                 }
               </div>
 
-              ${booksGridHtml}
+              <div class="pt-1">
+                <div class="flex items-end gap-3 overflow-x-auto pb-2 min-h-[144px]">
+                  ${
+                    bookCardsHtml ||
+                    `<div class="w-full py-8 text-center text-xs text-muted rounded-2xl bg-paper/70 border border-dashed border-amber-900/15">
+                      ${
+                        isMyShelf
+                          ? '아직 꽂힌 책이 없어요. 위의 "+ 책 추가"로 첫 책을 넣어보세요!'
+                          : '아직 등록된 책이 없어요.'
+                      }
+                    </div>`
+                  }
+                </div>
+                <div class="shelf-ledge"></div>
+              </div>
             </section>
           `;
         })
         .join('');
 
-      container.innerHTML = `
-        <div class="space-y-5">
-          ${shelvesHtml}
-        </div>
-      `;
+      container.innerHTML = shelvesHtml;
     }
 
-    function renderBookDetailView(container, book) {
+    function renderBookFeedView(container, book) {
       const owner = getUserById(book.ownerId);
-      const bookEntries = state.entries.filter((e) => e.bookId === book.id);
-      const isBookOwner = canManageBook(book);
+      const isMyBook = canManageBook(book);
+      const bookEntries = state.entries
+        .filter((e) => e.bookId === book.id)
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
       const entriesHtml =
         bookEntries.length === 0
           ? `
-            <div class="rounded-3xl bg-surface p-8 text-center border border-dashed border-amber-900/20 space-y-2">
-              <div class="text-3xl">📖</div>
-              <p class="font-serif text-base font-bold text-ink">아직 기록된 구절이 없어요</p>
-              ${
-                isBookOwner
-                  ? `<p class="text-xs text-muted leading-relaxed">아래 <b>구절 사진 찍기</b> 버튼을 눌러<br/>마음에 남는 문장을 찍고 형광펜을 그어보세요.</p>`
-                  : `<p class="text-xs text-muted leading-relaxed">${escapeHtml(owner.name)}님이 아직 이 책의 구절을 올리지 않았어요.</p>`
-              }
+            <div class="rounded-3xl bg-surface border border-dashed border-amber-900/15 p-8 text-center space-y-2">
+              <p class="text-2xl">📖</p>
+              <p class="text-sm font-bold text-ink">아직 기록된 구절 사진이 없어요</p>
+              <p class="text-xs text-muted">
+                ${
+                  isMyBook
+                    ? '위의 "구절 사진 찍기" 버튼을 눌러 인상 깊은 문장을 남겨보세요.'
+                    : `${escapeHtml(owner.name)}님이 아직 구절 사진을 올리지 않았어요.`
+                }
+              </p>
             </div>
           `
           : bookEntries
               .map((entry) => {
                 const author = getUserById(entry.authorId);
-                const authorPalette = getPaletteForUser(author);
-                const canEditThisEntry = canManageEntry(entry, book);
+                const palette = getPaletteForUser(author);
+                const canEditOrDelete = canManageEntry(entry, book);
                 const replies = Array.isArray(entry.replies) ? entry.replies : [];
 
-                const repliesHtml =
-                  replies.length === 0
-                    ? `<p class="text-xs text-muted/80 py-1">아직 답글이 없어요. 첫 감상을 남겨보세요!</p>`
-                    : replies
-                        .map((rep) => {
-                          const repAuthor = getUserById(rep.authorId);
-                          const repPalette = getPaletteForUser(repAuthor);
-                          return `
-                            <div class="flex items-start gap-2 rounded-2xl bg-paper px-3 py-2.5 border border-amber-900/10">
-                              <span class="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${repPalette.badge}">
-                                ${escapeHtml(repAuthor.name)}
-                              </span>
-                              <div class="min-w-0 flex-1">
-                                <p class="text-sm text-ink leading-snug break-words">${escapeHtml(rep.text)}</p>
-                                <span class="text-[10px] text-muted">${escapeHtml(rep.date || '')}</span>
-                              </div>
-                            </div>
-                          `;
-                        })
-                        .join('');
+                const repliesHtml = replies
+                  .map((rep) => {
+                    const repAuthor = getUserById(rep.authorId);
+                    const repPalette = getPaletteForUser(repAuthor);
+                    return `
+                      <div class="rounded-2xl bg-paper px-3 py-2 border border-amber-900/10 flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border ${repPalette.badge} mr-1.5">
+                            ${escapeHtml(repAuthor.name)}
+                          </span>
+                          <span class="text-xs text-ink break-words">${escapeHtml(rep.text)}</span>
+                        </div>
+                        <span class="text-[10px] text-muted shrink-0">${escapeHtml(rep.date || '')}</span>
+                      </div>
+                    `;
+                  })
+                  .join('');
 
                 return `
-                  <article class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3.5">
+                  <article class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
                     <div class="flex items-center justify-between gap-2">
                       <div class="flex items-center gap-2 min-w-0">
-                        <span class="w-7 h-7 rounded-full ${authorPalette.bg} ${authorPalette.text} text-xs font-bold flex items-center justify-center shrink-0">
-                          ${escapeHtml(author.name.slice(0, 1))}
+                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border ${palette.badge}">
+                          ${escapeHtml(author.name)}
                         </span>
-                        <div class="min-w-0">
-                          <p class="text-xs font-bold text-ink truncate">${escapeHtml(author.name)}의 기록</p>
-                          <p class="text-[11px] text-muted">📅 ${escapeHtml(entry.photoDate || '')}</p>
-                        </div>
+                        <span class="text-xs text-muted">${escapeHtml(entry.photoDate || '')}</span>
                       </div>
-
                       ${
-                        canEditThisEntry
+                        canEditOrDelete
                           ? `
-                            <div class="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                data-edit-entry="${entry.id}"
-                                class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-2.5 py-1.5 transition"
-                              >
-                                수정
-                              </button>
-                              <button
-                                type="button"
-                                data-delete-entry="${entry.id}"
-                                class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1.5 transition"
-                              >
-                                삭제
-                              </button>
-                            </div>
-                          `
+                        <div class="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            data-edit-entry="${escapeHtml(entry.id)}"
+                            class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-[11px] font-bold px-2.5 py-1 transition cursor-pointer"
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            data-delete-entry="${escapeHtml(entry.id)}"
+                            class="rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold px-2.5 py-1 transition cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      `
                           : ''
                       }
                     </div>
 
-                    <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-amber-50">
+                    <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper">
                       <img
                         src="${escapeHtml(entry.photoUrl)}"
-                        alt="기록된 책 구절"
-                        class="w-full h-auto object-contain max-h-[420px] mx-auto block"
+                        alt="${escapeHtml(book.title)} 구절 사진"
+                        class="w-full h-auto block"
                       />
                     </div>
 
-                    <div class="pt-1 border-t border-amber-900/10 space-y-2.5">
-                      <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-muted">💬 함께 나눈 답글 (${replies.length})</span>
-                      </div>
-
-                      <div class="space-y-2">
-                        ${repliesHtml}
-                      </div>
-
-                      <form data-reply-form="${entry.id}" class="flex items-center gap-2 pt-1">
+                    <div class="space-y-2 pt-1">
+                      <div class="space-y-1.5">${repliesHtml}</div>
+                      <form data-reply-form="${escapeHtml(entry.id)}" class="flex items-center gap-2 pt-1">
                         <input
                           type="text"
                           name="replyText"
-                          placeholder="${escapeHtml(getUserById(state.activeUserId).name)} 이름으로 답글 남기기..."
-                          class="flex-1 min-w-0 rounded-2xl bg-paper border border-amber-900/15 px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-accent"
-                          required
+                          placeholder="이 구절에 답글 남기기..."
+                          class="flex-1 min-w-0 rounded-2xl bg-paper border border-amber-900/15 px-3 py-2 text-xs text-ink placeholder:text-muted/60 focus:outline-none focus:border-accent"
                         />
                         <button
                           type="submit"
-                          class="shrink-0 rounded-2xl bg-ink hover:bg-ink/90 active:scale-95 text-white text-xs font-semibold px-4 py-2.5 transition"
+                          class="shrink-0 rounded-2xl bg-accent hover:bg-accent/90 text-white text-xs font-bold px-3.5 py-2 transition cursor-pointer"
                         >
                           등록
                         </button>
@@ -1388,99 +1310,136 @@
               .join('');
 
       container.innerHTML = `
-        <div class="space-y-5">
-          <div class="rounded-3xl bg-surface p-4 border border-amber-900/10 shadow-xs flex items-center gap-3.5">
-            <div class="w-16 h-24 rounded-r-xl rounded-l-sm overflow-hidden bg-amber-100 book-spine-edge border border-amber-900/15 shrink-0">
+        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-12 h-16 rounded-lg overflow-hidden border border-amber-900/15 shrink-0 bg-amber-100/60 flex items-center justify-center">
               ${
                 book.coverImage
-                  ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)}" class="w-full h-full object-cover" />`
-                  : `<div class="w-full h-full p-1.5 flex items-center justify-center text-center font-serif text-[11px] font-bold text-ink bg-amber-50">${escapeHtml(book.title)}</div>`
+                  ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(
+                      book.title
+                    )}" class="w-full h-full object-cover" />`
+                  : `<span class="text-xl">📘</span>`
               }
             </div>
-            <div class="min-w-0 flex-1 space-y-1">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accentSoft text-accent">
-                  ${escapeHtml(owner.name)}의 책장
-                </span>
-                ${
-                  isBookOwner
-                    ? `
-                      <button
-                        type="button"
-                        data-edit-book-cover="${book.id}"
-                        class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-ink transition"
-                      >
-                        표지 수정
-                      </button>
-                    `
-                    : ''
-                }
-              </div>
-              <h2 class="font-serif text-lg font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
-              <p class="text-xs text-muted">${escapeHtml(book.author || '지은이 미상')} · 구절 ${bookEntries.length}개</p>
+            <div class="min-w-0">
+              <p class="text-[11px] font-bold text-accent">${escapeHtml(owner.name)}의 책장</p>
+              <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(book.title)}</h2>
+              <p class="text-xs text-muted truncate">${escapeHtml(
+                book.author || '지은이 미상'
+              )} · 구절 ${bookEntries.length}개</p>
             </div>
           </div>
 
           ${
-            isBookOwner
+            isMyBook
               ? `
-                <button
-                  type="button"
-                  data-open-new-entry="${book.id}"
-                  class="w-full rounded-2xl bg-accent hover:bg-accent/90 active:scale-[0.99] text-white font-bold text-sm py-3.5 px-4 shadow-sm flex items-center justify-center gap-2 transition"
-                >
-                  <span class="text-base">📸</span>
-                  <span>구절 사진 찍기 (형광펜 밑줄)</span>
-                </button>
-              `
-              : `
-                <div class="rounded-2xl bg-amber-100/60 border border-amber-900/10 px-4 py-3 text-center text-xs text-muted">
-                  👀 <b>${escapeHtml(owner.name)}</b>님의 책장을 함께 보고 있어요. 아래 구절에 답글을 남길 수 있습니다.
-                </div>
-              `
+            <div class="flex flex-col gap-1.5 shrink-0">
+              <button
+                type="button"
+                data-open-new-entry="${escapeHtml(book.id)}"
+                class="rounded-2xl bg-accent hover:bg-accent/90 text-white text-xs font-bold px-3 py-2 shadow-2xs transition cursor-pointer"
+              >
+                📷 구절 사진 찍기
+              </button>
+              <button
+                type="button"
+                data-edit-book-cover="${escapeHtml(book.id)}"
+                class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-[11px] font-bold px-3 py-1.5 transition cursor-pointer"
+              >
+                표지 수정
+              </button>
+            </div>
+          `
+              : `<span class="text-[11px] text-muted shrink-0">내 책장만 기록 가능</span>`
           }
+        </section>
 
-          <div class="space-y-4">
-            ${entriesHtml}
-          </div>
-        </div>
+        <section class="space-y-4">
+          ${entriesHtml}
+        </section>
       `;
+    }
+
+    function renderApp() {
+      const mainContent = document.getElementById('mainContent');
+      const navHomeBtn = document.getElementById('navHomeBtn');
+      const navSettingsBtn = document.getElementById('navSettingsBtn');
+      const backBtn = document.getElementById('headerBackBtn');
+      const headerTitle = document.getElementById('headerTitle');
+      const headerSubtitle = document.getElementById('headerSubtitle');
+
+      if (!mainContent) return;
+
+      renderActiveUserBadge();
+      updateNewsBadgeUI();
+
+      if (state.currentTab === 'settings') {
+        navSettingsBtn.className =
+          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+        navHomeBtn.className =
+          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+        backBtn.classList.add('hidden');
+        backBtn.classList.remove('flex');
+        headerTitle.textContent = '설정';
+        headerSubtitle.textContent = '알림 · 공유 · 기기 사용자 고정';
+        renderSettingsView(mainContent);
+        return;
+      }
+
+      navHomeBtn.className =
+        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+      navSettingsBtn.className =
+        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+
+      const selectedBook = state.selectedBookId
+        ? state.books.find((b) => b.id === state.selectedBookId)
+        : null;
+
+      if (selectedBook) {
+        backBtn.classList.remove('hidden');
+        backBtn.classList.add('flex');
+        headerTitle.textContent = selectedBook.title;
+        const owner = getUserById(selectedBook.ownerId);
+        headerSubtitle.textContent = `${owner.name}의 책장 · 구절 기록`;
+        renderBookFeedView(mainContent, selectedBook);
+        return;
+      }
+
+      backBtn.classList.add('hidden');
+      backBtn.classList.remove('flex');
+      headerTitle.textContent = '우리의 독서메모';
+      headerSubtitle.textContent = state.cloudConnected
+        ? '실시간 동기화 중 · 함께 남기는 책장'
+        : '소중한 문장과 사진을 함께 남기는 책장';
+      renderHomeView(mainContent);
     }
 
     function renderSettingsView(container) {
       const usersListHtml = state.users
-        .map((user) => {
-          const palette = getPaletteForUser(user);
-          const isCurrent = user.id === state.activeUserId;
-          const bookCount = state.books.filter((b) => b.ownerId === user.id).length;
-
+        .map((u) => {
+          const palette = getPaletteForUser(u);
+          const isFixedCurrent = u.id === state.activeUserId;
           return `
-            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper p-3 border ${
-              isCurrent ? 'border-accent bg-accentSoft/40' : 'border-amber-900/10'
-            }">
+            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
               <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-9 h-9 rounded-2xl ${palette.bg} ${palette.text} font-bold text-sm flex items-center justify-center shrink-0">
-                  ${escapeHtml(user.name.slice(0, 1))}
-                </span>
-                <div class="min-w-0">
-                  <p class="text-sm font-bold text-ink truncate">
-                    ${escapeHtml(user.name)}
-                    ${isCurrent ? '<span class="ml-1 text-[11px] font-semibold text-accent">(이 기기 고정됨 🔒)</span>' : ''}
-                  </p>
-                  <p class="text-xs text-muted">책장에 책 ${bookCount}권</p>
-                </div>
+                <span class="w-3 h-3 rounded-full ${palette.dot} shrink-0"></span>
+                <span class="text-sm font-bold text-ink truncate">${escapeHtml(u.name)}</span>
+                ${
+                  isFixedCurrent
+                    ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-accentSoft text-accent shrink-0">🔒 이 기기 고정됨</span>`
+                    : ''
+                }
               </div>
-
               <button
                 type="button"
-                data-select-active-user="${user.id}"
-                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  isCurrent
-                    ? 'bg-accent text-white'
-                    : 'bg-surface border border-amber-900/15 text-ink hover:bg-amber-100/60'
+                data-select-active-user="${escapeHtml(u.id)}"
+                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  isFixedCurrent
+                    ? 'bg-amber-100 text-muted'
+                    : 'bg-accent hover:bg-accent/90 text-white'
                 }"
               >
-                ${isCurrent ? '고정됨 🔒' : '이 사람으로 고정'}
+                ${isFixedCurrent ? '고정 중' : '이 기기에 고정'}
               </button>
             </div>
           `;
@@ -1488,55 +1447,69 @@
         .join('');
 
       container.innerHTML = `
-        <div class="space-y-5">
+        <div class="space-y-4">
           <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
             <div>
-              <h2 class="font-serif text-base font-bold text-ink">🔔 새 기록 및 답글 알림</h2>
-              <p class="text-xs text-muted mt-0.5">다른 멤버가 새 책, 구절, 답글을 올리면 알림음과 배너로 알려줘요.</p>
+              <h2 class="font-serif text-base font-bold text-ink">🔔 알림 및 소리 설정</h2>
+              <p class="text-xs text-muted mt-0.5">다른 사용자가 책·구절·답글을 올릴 때 소리와 알림을 받습니다.</p>
             </div>
 
-            <div class="flex items-center justify-between rounded-2xl bg-paper px-3.5 py-3 border border-amber-900/10">
+            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
               <div>
-                <p class="text-sm font-bold text-ink">딩동 알림음 켜기</p>
-                <p class="text-xs text-muted">새 글이나 답글이 올라오면 부드러운 소리가 울려요</p>
+                <p class="text-xs font-bold text-ink">딩동 알림음</p>
+                <p class="text-[11px] text-muted">새 활동이 들어오면 알림음을 재생합니다.</p>
               </div>
               <button
                 type="button"
                 id="toggleSoundAlertBtn"
-                class="rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                   state.soundAlertEnabled
                     ? 'bg-accent text-white'
                     : 'bg-amber-100 text-muted'
                 }"
               >
-                ${state.soundAlertEnabled ? '켜짐 ON' : '꺼짐 OFF'}
+                ${state.soundAlertEnabled ? '켜짐' : '꺼짐'}
               </button>
             </div>
 
-            <div class="flex items-center justify-between rounded-2xl bg-paper px-3.5 py-3 border border-amber-900/10">
+            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
               <div>
-                <p class="text-sm font-bold text-ink">기기 상단 알림 배너</p>
-                <p class="text-xs text-muted">브라우저 시스템 알림을 함께 띄워요</p>
+                <p class="text-xs font-bold text-ink">기기 상단 알림</p>
+                <p class="text-[11px] text-muted">브라우저 알림 권한이 허용된 경우 배너로 알립니다.</p>
               </div>
               <button
                 type="button"
                 id="toggleBrowserNotifyBtn"
-                class="rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                   state.browserNotifyEnabled
                     ? 'bg-accent text-white'
                     : 'bg-amber-100 text-muted'
                 }"
               >
-                ${state.browserNotifyEnabled ? '허용됨' : '허용하기'}
+                ${state.browserNotifyEnabled ? '허용됨' : '설정하기'}
               </button>
             </div>
 
             <button
               type="button"
               id="testNotificationSoundBtn"
-              class="w-full rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 transition"
+              class="w-full rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
             >
-              🔔 알림음 미리 들어보기
+              🔔 알림음 테스트
+            </button>
+          </section>
+
+          <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
+            <div>
+              <h2 class="font-serif text-base font-bold text-ink">🔗 책장 공유하기</h2>
+              <p class="text-xs text-muted mt-0.5">함께 기록할 분들에게 공용 책장 링크를 복사해 보내세요.</p>
+            </div>
+            <button
+              type="button"
+              id="copyShareLinkBtn"
+              class="w-full rounded-2xl bg-accentSoft hover:bg-accent/20 text-accent text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+            >
+              📋 공유 링크 복사하기
             </button>
           </section>
 
@@ -1611,6 +1584,31 @@
         playNotificationChime();
         state.soundAlertEnabled = prev;
         showToast('🔔 딩동! 새 구절이나 답글이 오면 이 소리가 울려요.');
+      });
+
+      document.getElementById('copyShareLinkBtn')?.addEventListener('click', () => {
+        const shareUrlObj = new URL(window.location.href);
+        shareUrlObj.searchParams.delete('user');
+        const cleanShareUrl = shareUrlObj.toString();
+
+        let copied = false;
+        try {
+          const tempInput = document.createElement('input');
+          tempInput.value = cleanShareUrl;
+          document.body.appendChild(tempInput);
+          tempInput.select();
+          tempInput.setSelectionRange(0, tempInput.value.length);
+          copied = document.execCommand('copy');
+          document.body.removeChild(tempInput);
+        } catch (err) {
+          copied = false;
+        }
+
+        if (copied) {
+          showToast('공유 링크가 복사되었습니다.');
+        } else {
+          showToast(`복사할 주소: ${cleanShareUrl}`);
+        }
       });
 
       const addUserForm = document.getElementById('addUserForm');
