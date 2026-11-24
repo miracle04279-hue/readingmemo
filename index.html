@@ -1810,8 +1810,12 @@
       });
 
       container.querySelectorAll('[data-zoom-entry-photo]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          openEntryPhotoZoomModal(btn.getAttribute('data-zoom-entry-photo'));
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const entryId = btn.getAttribute('data-zoom-entry-photo');
+          if (entryId) {
+            openEntryPhotoZoomModal(entryId);
+          }
         });
       });
 
@@ -2776,6 +2780,15 @@
       });
 
       document.addEventListener('click', (e) => {
+        const zoomPhotoBtn = e.target.closest('[data-zoom-entry-photo]');
+        if (zoomPhotoBtn && document.getElementById('modalBackdrop')?.classList.contains('hidden')) {
+          const entryId = zoomPhotoBtn.getAttribute('data-zoom-entry-photo');
+          if (entryId) {
+            openEntryPhotoZoomModal(entryId);
+            return;
+          }
+        }
+
         if (!dropdown?.classList.contains('hidden')) {
           if (!dropdown.contains(e.target) && !badgeBtn?.contains(e.target)) {
             dropdown.classList.add('hidden');
