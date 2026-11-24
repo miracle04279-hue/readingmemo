@@ -32,6 +32,7 @@
     };
   </script>
   <style>
+    /* 기본 타이포그래피 및 터치 피드백 스타일 */
     html, body {
       background-color: #FDF8F2;
       color: #241D18;
@@ -42,20 +43,24 @@
       word-break: keep-all;
       -webkit-tap-highlight-color: transparent;
     }
+    /* 종이 질감 배경 */
     .book-page-texture {
       background-color: #FFFDF9;
       background-image: radial-gradient(rgba(125, 111, 99, 0.06) 0.75px, transparent 0.75px);
       background-size: 14px 14px;
     }
+    /* 책등 제본 느낌 */
     .book-spine-edge {
       box-shadow: inset 6px 0 10px -6px rgba(44, 36, 30, 0.28), 0 4px 10px rgba(44, 36, 30, 0.08);
     }
+    /* 책장 선반 받침 */
     .shelf-ledge {
       background: linear-gradient(to bottom, #EADBC7 0%, #D9C3A8 100%);
       height: 10px;
       border-radius: 9999px;
       box-shadow: 0 3px 6px rgba(44, 36, 30, 0.12);
     }
+    /* 형광펜 캔버스 터치 스크롤 방지 */
     .highlighter-canvas {
       touch-action: none;
     }
@@ -95,7 +100,7 @@
             <span class="leading-none">새소식</span>
             <span
               id="newsBadgeCount"
-              class="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums"
+              class="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-900/15 text-muted text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums"
             >0</span>
           </button>
 
@@ -171,6 +176,7 @@
       collection,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+    // Firebase 프로젝트 기본 설정
     const FALLBACK_FIREBASE_CONFIG = {
       apiKey: "AIzaSyDYv4AIaGOSA1VRRGPICMMVLOMtJY-G9VA",
       authDomain: "readingmemo-a1306.firebaseapp.com",
@@ -214,6 +220,7 @@
       return doc(db, "artifacts", appId, "public", "data", collectionName, docId);
     }
 
+    // 사용자 테마 컬러 및 형광펜 팔레트
     const AVATAR_PALETTE = [
       { bg: 'bg-amber-200', text: 'text-amber-950', dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
       { bg: 'bg-emerald-200', text: 'text-emerald-950', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
@@ -236,6 +243,7 @@
       { id: 'user-ttungi', name: '뚱이', paletteIndex: 2, createdAt: 3 },
     ];
 
+    // 쿠키 및 IndexedDB 저장소 유틸리티
     function readCookieValue(name) {
       const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
       return match ? decodeURIComponent(match[1]) : '';
@@ -475,6 +483,24 @@
       return entry.authorId === state.activeUserId && ownsBook;
     }
 
+    function getEntrySortTimestamp(entry) {
+      if (!entry) return 0;
+      const created = Number(entry.createdAt);
+      if (Number.isFinite(created) && created > 0) return created;
+
+      const idMatch = String(entry.id || '').match(/(\d{10,})/);
+      if (idMatch) {
+        const parsedIdTs = Number(idMatch[1]);
+        if (Number.isFinite(parsedIdTs) && parsedIdTs > 0) return parsedIdTs;
+      }
+
+      if (entry.photoDate) {
+        const parsedDate = Date.parse(`${entry.photoDate}T00:00:00`);
+        if (!Number.isNaN(parsedDate)) return parsedDate;
+      }
+      return 0;
+    }
+
     let toastTimer = null;
     function showToast(message) {
       const banner = document.getElementById('toastBanner');
@@ -592,9 +618,6 @@
       }
     }
 
-    window.__collectMissedActivityMessages = collectMissedActivityMessages;
-    window.__notifyMissedActivity = notifyMissedActivity;
-
     function compressImageDataUrl(rawDataUrl, maxDimension = 1440, quality = 0.86) {
       return new Promise((resolve) => {
         if (!rawDataUrl || !rawDataUrl.startsWith('data:image/')) {
@@ -641,6 +664,7 @@
       return { stopStream: () => {} };
     }
 
+    // Firestore 동기화 헬퍼
     async function syncSaveUser(userObj) {
       if (!db || !currentAuthUser) return;
       try {
@@ -744,7 +768,8 @@
         ...item,
         replies: Array.isArray(item.replies) ? item.replies.map((r) => ({ ...r })) : [],
       }));
-      loadedEntries.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      // 먼저 찍은 구절이 위, 나중에 찍은 구절이 아래로 오도록 오름차순 정렬
+      loadedEntries.sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
       state.entries = loadedEntries;
 
       if (!initialEntriesLoaded) {
@@ -1076,7 +1101,6 @@
       const dotEl = document.getElementById('activeUserDot');
       const labelEl = document.getElementById('activeUserLabel');
       const lockIconEl = document.getElementById('activeUserLockIcon');
-      const statusHintEl = document.getElementById('activeUserStatusHint');
       const dropdownEl = document.getElementById('activeUserDropdown');
 
       if (dotEl) {
@@ -1087,9 +1111,6 @@
       }
       if (lockIconEl) {
         lockIconEl.textContent = state.isUserLocked ? '🔒' : '🔓';
-      }
-      if (statusHintEl) {
-        statusHintEl.textContent = state.isUserLocked ? '내 기기 고정됨' : '사용자 선택 중';
       }
       if (dropdownEl) {
         const usersOptionsHtml = state.users
@@ -1183,7 +1204,8 @@
                     data-open-book="${escapeHtml(book.id)}"
                     data-longpress-book-id="${escapeHtml(book.id)}"
                     data-longpress-can-delete="${isMyShelf ? '1' : '0'}"
-                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 transition text-left block bg-surface cursor-pointer select-none"
+                    style="touch-action: manipulation;"
+                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 active:scale-95 transition text-left block bg-surface cursor-pointer select-none"
                   >
                     ${coverVisual}
                   </button>
@@ -1246,24 +1268,7 @@
       const owner = getUserById(book.ownerId);
       const isMyBook = canManageBook(book);
 
-      function getEntrySortTimestamp(entry) {
-        if (!entry) return 0;
-        const created = Number(entry.createdAt);
-        if (Number.isFinite(created) && created > 0) return created;
-
-        const idMatch = String(entry.id || '').match(/(\d{10,})/);
-        if (idMatch) {
-          const parsedIdTs = Number(idMatch[1]);
-          if (Number.isFinite(parsedIdTs) && parsedIdTs > 0) return parsedIdTs;
-        }
-
-        if (entry.photoDate) {
-          const parsedDate = Date.parse(`${entry.photoDate}T00:00:00`);
-          if (!Number.isNaN(parsedDate)) return parsedDate;
-        }
-        return 0;
-      }
-
+      // 먼저 찍은 사진이 위, 나중에 찍은 사진이 아래로 배치되도록 오름차순 정렬
       const bookEntries = state.entries
         .filter((e) => e.bookId === book.id)
         .sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
@@ -1420,60 +1425,6 @@
           ${entriesHtml}
         </section>
       `;
-    }
-
-    function renderApp() {
-      const mainContent = document.getElementById('mainContent');
-      const navHomeBtn = document.getElementById('navHomeBtn');
-      const navSettingsBtn = document.getElementById('navSettingsBtn');
-      const backBtn = document.getElementById('headerBackBtn');
-      const headerTitle = document.getElementById('headerTitle');
-      const headerSubtitle = document.getElementById('headerSubtitle');
-
-      if (!mainContent) return;
-
-      renderActiveUserBadge();
-      updateNewsBadgeUI();
-
-      if (state.currentTab === 'settings') {
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-        backBtn.classList.add('hidden');
-        backBtn.classList.remove('flex');
-        headerTitle.textContent = '설정';
-        headerSubtitle.textContent = '알림 · 공유 · 기기 사용자 고정';
-        renderSettingsView(mainContent);
-        return;
-      }
-
-      navHomeBtn.className =
-        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-      navSettingsBtn.className =
-        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-
-      const selectedBook = state.selectedBookId
-        ? state.books.find((b) => b.id === state.selectedBookId)
-        : null;
-
-      if (selectedBook) {
-        backBtn.classList.remove('hidden');
-        backBtn.classList.add('flex');
-        headerTitle.textContent = selectedBook.title;
-        const owner = getUserById(selectedBook.ownerId);
-        headerSubtitle.textContent = `${owner.name}의 책장 · 구절 기록`;
-        renderBookFeedView(mainContent, selectedBook);
-        return;
-      }
-
-      backBtn.classList.add('hidden');
-      backBtn.classList.remove('flex');
-      headerTitle.textContent = '우리의 독서메모';
-      headerSubtitle.textContent = state.cloudConnected
-        ? '실시간 동기화 중 · 함께 남기는 책장'
-        : '소중한 문장과 사진을 함께 남기는 책장';
-      renderHomeView(mainContent);
     }
 
     function renderSettingsView(container) {
@@ -1696,6 +1647,60 @@
           showToast(`"${name}" 사용자가 추가되고 이 기기에 고정되었습니다.`);
         });
       }
+    }
+
+    function renderApp() {
+      const mainContent = document.getElementById('mainContent');
+      const navHomeBtn = document.getElementById('navHomeBtn');
+      const navSettingsBtn = document.getElementById('navSettingsBtn');
+      const backBtn = document.getElementById('headerBackBtn');
+      const headerTitle = document.getElementById('headerTitle');
+      const headerSubtitle = document.getElementById('headerSubtitle');
+
+      if (!mainContent) return;
+
+      renderActiveUserBadge();
+      updateNewsBadgeUI();
+
+      if (state.currentTab === 'settings') {
+        navSettingsBtn.className =
+          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+        navHomeBtn.className =
+          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+        backBtn.classList.add('hidden');
+        backBtn.classList.remove('flex');
+        headerTitle.textContent = '설정';
+        headerSubtitle.textContent = '알림 · 공유 · 기기 사용자 고정';
+        renderSettingsView(mainContent);
+        return;
+      }
+
+      navHomeBtn.className =
+        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+      navSettingsBtn.className =
+        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+
+      const selectedBook = state.selectedBookId
+        ? state.books.find((b) => b.id === state.selectedBookId)
+        : null;
+
+      if (selectedBook) {
+        backBtn.classList.remove('hidden');
+        backBtn.classList.add('flex');
+        headerTitle.textContent = selectedBook.title;
+        const owner = getUserById(selectedBook.ownerId);
+        headerSubtitle.textContent = `${owner.name}의 책장 · 구절 기록`;
+        renderBookFeedView(mainContent, selectedBook);
+        return;
+      }
+
+      backBtn.classList.add('hidden');
+      backBtn.classList.remove('flex');
+      headerTitle.textContent = '우리의 독서메모';
+      headerSubtitle.textContent = state.cloudConnected
+        ? '실시간 동기화 중 · 함께 남기는 책장'
+        : '소중한 문장과 사진을 함께 남기는 책장';
+      renderHomeView(mainContent);
     }
 
     function openAddBookModal(ownerId) {
@@ -2405,13 +2410,6 @@
         const addBookBtn = e.target.closest('[data-open-add-book]');
         if (addBookBtn) {
           openAddBookModal(addBookBtn.getAttribute('data-open-add-book'));
-          return;
-        }
-
-        const deleteBookBtn = e.target.closest('[data-delete-book]');
-        if (deleteBookBtn) {
-          e.stopPropagation();
-          openDeleteBookModal(deleteBookBtn.getAttribute('data-delete-book'));
           return;
         }
 
