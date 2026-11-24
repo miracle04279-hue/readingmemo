@@ -2166,39 +2166,54 @@
               ${coverThumbHtml}
             </button>
             <div class="min-w-0 flex-1">
-              <span class="text-xs font-semibold text-accent block">${escapeHtml(owner.name)}의 책장</span>
-              <h2 class="font-serif text-lg font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
-              <p class="text-xs text-muted mt-0.5 break-words">${escapeHtml(book.author || '지은이 미입력')} · 구절 ${bookEntries.length}개</p>
-
-              <div class="mt-3 flex flex-wrap items-center gap-2">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <span class="text-xs font-semibold text-accent block">${escapeHtml(owner.name)}의 책장</span>
+                  <h2 class="font-serif text-lg font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
+                </div>
                 ${
                   isBookOwner
                     ? `
                       <button
                         type="button"
-                        data-open-entry-editor
-                        class="rounded-2xl bg-accent text-white text-xs font-bold px-3.5 py-2 shadow-2xs hover:opacity-95 active:scale-95 transition cursor-pointer"
-                      >
-                        📷 구절 사진 찍기
-                      </button>
-                      <button
-                        type="button"
                         data-edit-cover="${escapeHtml(book.id)}"
-                        class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-3 py-2 transition cursor-pointer"
+                        class="shrink-0 rounded-xl border border-amber-900/15 bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-2.5 py-1.5 transition cursor-pointer"
                       >
                         책 정보 수정
                       </button>
                     `
-                    : `
-                      <span class="rounded-2xl bg-amber-100/70 text-muted text-xs font-medium px-3 py-1.5">
-                        ${escapeHtml(owner.name)}님 책장 (구절 추가는 ${escapeHtml(owner.name)}님만 가능)
-                      </span>
-                    `
+                    : ''
                 }
               </div>
+              <p class="text-xs text-muted mt-0.5 break-words">${escapeHtml(book.author || '지은이 미입력')} · 구절 ${bookEntries.length}개</p>
             </div>
           </div>
         </section>
+
+        ${
+          isBookOwner
+            ? `
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold text-muted px-1">기록된 구절 (${bookEntries.length})</span>
+                <button
+                  type="button"
+                  data-open-entry-editor
+                  class="inline-flex items-center gap-1.5 rounded-2xl bg-accent text-white text-xs font-bold px-4 py-2.5 shadow-sm hover:opacity-95 active:scale-95 transition cursor-pointer"
+                >
+                  <span>📷</span>
+                  <span>구절 사진 찍기</span>
+                </button>
+              </div>
+            `
+            : `
+              <div class="flex items-center justify-between gap-2 px-1">
+                <span class="text-xs font-bold text-muted">기록된 구절 (${bookEntries.length})</span>
+                <span class="rounded-xl bg-amber-100/70 text-muted text-[11px] font-medium px-2.5 py-1">
+                  ${escapeHtml(owner.name)}님 책장
+                </span>
+              </div>
+            `
+        }
 
         <section class="space-y-4">
           ${entriesHtml}
@@ -2894,20 +2909,20 @@
         </div>
 
         <form id="entryEditorForm" class="space-y-3.5">
-          <div class="flex items-center gap-2">
+          <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
               data-start-camera
-              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              class="w-full rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
             >
-              📷 카메라로 찍기
+              📷 카메라 촬영
             </button>
             <button
               type="button"
               data-pick-file
-              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              class="w-full rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
             >
-              🖼️ 사진 선택
+              🖼️ 앨범 선택
             </button>
             <input type="file" accept="image/*" data-file-input class="hidden" />
           </div>
@@ -2920,28 +2935,30 @@
             </div>
           </div>
 
-          <div class="space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs font-bold text-ink">형광펜 밑줄 색상</span>
-              <div class="flex items-center gap-2.5">
-                <button type="button" data-crop-entry-photo class="text-xs font-bold text-ink bg-amber-100/80 hover:bg-amber-200/80 px-2.5 py-1 rounded-xl cursor-pointer">
-                  ✂️ 사진 오리기
+          <div class="space-y-2.5 rounded-2xl border border-amber-900/10 bg-paper/80 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-bold text-ink">형광펜 색상</span>
+              <div class="flex items-center gap-1.5">
+                <button type="button" data-crop-entry-photo class="text-[11px] font-bold text-ink bg-amber-100/90 hover:bg-amber-200/90 px-2.5 py-1 rounded-xl cursor-pointer">
+                  ✂️ 오리기
                 </button>
-                <button type="button" data-reset-canvas class="text-xs font-semibold text-accent hover:underline cursor-pointer">
-                  원본 사진으로 되돌리기
+                <button type="button" data-reset-canvas class="text-[11px] font-bold text-accent bg-accentSoft/80 hover:bg-accentSoft px-2.5 py-1 rounded-xl cursor-pointer">
+                  원본 복원
                 </button>
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-1.5">
+
+            <div class="grid grid-cols-4 gap-1.5">
               ${swatchesHtml}
             </div>
-            <div class="flex items-center justify-between gap-2 pt-0.5">
-              <span class="text-[11px] text-muted">한 손가락: 형광펜 · 두 손가락: 확대/이동</span>
+
+            <div class="flex items-center justify-between gap-2 pt-1 border-t border-amber-900/10">
+              <span class="text-[11px] text-muted">1손가락 칠하기 · 2손가락 확대</span>
               <div class="flex items-center gap-1 shrink-0">
-                <button type="button" data-zoom-out class="w-7 h-7 rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold cursor-pointer">-</button>
-                <span data-zoom-label class="min-w-[42px] text-center text-[11px] font-bold text-ink tabular-nums">100%</span>
-                <button type="button" data-zoom-in class="w-7 h-7 rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold cursor-pointer">+</button>
-                <button type="button" data-zoom-reset class="rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-muted text-[11px] font-semibold px-2 h-7 cursor-pointer">맞춤</button>
+                <button type="button" data-zoom-out class="w-7 h-7 rounded-lg bg-amber-100/90 hover:bg-amber-200/90 text-ink text-xs font-bold cursor-pointer">-</button>
+                <span data-zoom-label class="min-w-[40px] text-center text-[11px] font-bold text-ink tabular-nums">100%</span>
+                <button type="button" data-zoom-in class="w-7 h-7 rounded-lg bg-amber-100/90 hover:bg-amber-200/90 text-ink text-xs font-bold cursor-pointer">+</button>
+                <button type="button" data-zoom-reset class="rounded-lg bg-amber-100/90 hover:bg-amber-200/90 text-muted text-[11px] font-bold px-2 h-7 cursor-pointer">맞춤</button>
               </div>
             </div>
           </div>
@@ -2951,7 +2968,7 @@
               <canvas data-hl-canvas class="highlighter-canvas w-full h-auto hidden"></canvas>
             </div>
             <p data-hl-placeholder class="text-xs text-muted p-6 text-center">
-              카메라로 구절을 찍거나 사진을 선택하면<br/>손가락이나 마우스로 형광펜 밑줄을 그을 수 있어요.
+              카메라로 구절을 찍거나 앨범에서 사진을 선택하면<br/>손가락이나 마우스로 형광펜 밑줄을 그을 수 있어요.
             </p>
           </div>
 
@@ -2965,9 +2982,9 @@
             />
           </div>
 
-          <div class="flex items-center justify-end gap-2 pt-2">
-            <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
-            <button type="submit" class="rounded-2xl bg-accent text-white text-xs font-bold px-5 py-2.5 shadow-sm cursor-pointer">저장하기</button>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" data-close-modal class="w-full rounded-2xl bg-amber-100/80 text-muted text-xs font-bold py-3 cursor-pointer">취소</button>
+            <button type="submit" class="w-full rounded-2xl bg-accent text-white text-xs font-bold py-3 shadow-sm cursor-pointer">저장하기</button>
           </div>
         </form>
       `);
