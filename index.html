@@ -247,8 +247,60 @@
     }
 
     function writeCookieValue(name, value, days = 365) {
-      const expires = new Date(Date.now() + days * 864e5).toUTCString();
-      document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+      try {
+        const expires = new Date(Date.now() + days * 864e5).toUTCString();
+        document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+      } catch (e) {}
+    }
+
+    // IndexedDB 보조 저장소 (모바일 브라우저 저장소 제한 대비)
+    const IDB_NAME = 'readingmemo_device_store';
+    const IDB_STORE = 'prefs';
+
+    function openPrefsDb() {
+      return new Promise((resolve) => {
+        if (!('indexedDB' in window)) {
+          resolve(null);
+          return;
+        }
+        try {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = () => {
+            const dbInstance = req.result;
+            if (!dbInstance.objectStoreNames.contains(IDB_STORE)) {
+              dbInstance.createObjectStore(IDB_STORE);
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    }
+
+    async function savePrefToIdb(key, value) {
+      const dbInstance = await openPrefsDb();
+      if (!dbInstance) return;
+      try {
+        const tx = dbInstance.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(value, key);
+      } catch (e) {}
+    }
+
+    async function loadPrefFromIdb(key) {
+      const dbInstance = await openPrefsDb();
+      if (!dbInstance) return null;
+      return new Promise((resolve) => {
+        try {
+          const tx = dbInstance.transaction(IDB_STORE, 'readonly');
+          const req = tx.objectStore(IDB_STORE).get(key);
+          req.onsuccess = () => resolve(req.result ?? null);
+          req.onerror = () => resolve(null);
+        } catch (e) {
+          resolve(null);
+        }
+      });
     }
 
     function getPersistedUserConfig() {
@@ -281,7 +333,7 @@
       const cookieLocked = readCookieValue('readingmemo_user_locked');
 
       const resolvedUserId =
-        urlUserId || hashUserId || lsUserId || cookieUserId || winNameUserId || '';
+        lsUserId || cookieUserId || winNameUserId || urlUserId || hashUserId || '';
       const resolvedLockedStr = lsLocked || cookieLocked || winNameLocked;
       return {
         userId: resolvedUserId,
@@ -291,12 +343,32 @@
 
     const persistedUser = getPersistedUserConfig();
 
+    function getSavedLastSeenAt() {
+      try {
+        const lsVal = Number(localStorage.getItem('readingmemo_last_seen_at') || '0');
+        if (lsVal > 0) return lsVal;
+      } catch (e) {}
+      const ckVal = Number(readCookieValue('readingmemo_last_seen_at') || '0');
+      return ckVal > 0 ? ckVal : 0;
+    }
+
+    function markLastSeenNow() {
+      const now = Date.now();
+      state.lastSeenAt = now;
+      try {
+        localStorage.setItem('readingmemo_last_seen_at', String(now));
+      } catch (e) {}
+      writeCookieValue('readingmemo_last_seen_at', String(now), 365);
+      savePrefToIdb('lastSeenAt', now);
+    }
+
     const state = {
       currentTab: 'home',
       selectedBookId: null,
       viewMode: 'home',
       activeUserId: persistedUser.userId || 'user-kkyukkyu',
       isUserLocked: persistedUser.isLocked,
+      lastSeenAt: getSavedLastSeenAt(),
       cloudConnected: false,
       soundAlertEnabled: localStorage.getItem('readingmemo_sound_alert') !== 'false',
       browserNotifyEnabled: localStorage.getItem('readingmemo_browser_notify') === 'true',
@@ -308,6 +380,7 @@
     let initialBooksLoaded = false;
     let initialEntriesLoaded = false;
     let usersSnapshotInitialized = false;
+    let missedCatchupDone = false;
     const knownBookIds = new Set();
     const knownEntryIds = new Set();
     const knownReplyIds = new Set();
@@ -322,16 +395,42 @@
       } catch (e) {}
       writeCookieValue('readingmemo_active_user_id', userId, 365);
       writeCookieValue('readingmemo_user_locked', String(lock), 365);
+      savePrefToIdb('activeUserId', userId);
+      savePrefToIdb('isUserLocked', Boolean(lock));
 
       try {
         window.name = `READINGMEMO_USER:${JSON.stringify({ userId, isLocked: lock })}`;
       } catch (e) {}
 
       try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('user', userId);
-        url.hash = `user=${encodeURIComponent(userId)}`;
-        window.history.replaceState({}, '', url.toString());
+        if (window.location.protocol !== 'blob:' && window.location.protocol !== 'file:') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('user', userId);
+          window.history.replaceState({}, '', url.toString());
+        }
+      } catch (e) {}
+    }
+
+    // 앱 재실행 시에도 고정 상태가 유지되도록 초기 복원값 동기화
+    if (persistedUser.userId) {
+      setFixedActiveUser(persistedUser.userId, persistedUser.isLocked);
+    }
+
+    async function hydratePrefsFromIndexedDb() {
+      try {
+        const [idbUser, idbLocked, idbLastSeen] = await Promise.all([
+          loadPrefFromIdb('activeUserId'),
+          loadPrefFromIdb('isUserLocked'),
+          loadPrefFromIdb('lastSeenAt'),
+        ]);
+        const currentLsUser = localStorage.getItem('readingmemo_active_user_id');
+        if (!currentLsUser && idbUser) {
+          setFixedActiveUser(idbUser, idbLocked !== false);
+          renderApp();
+        }
+        if (!state.lastSeenAt && Number(idbLastSeen) > 0) {
+          state.lastSeenAt = Number(idbLastSeen);
+        }
       } catch (e) {}
     }
 
@@ -701,6 +800,65 @@
         }
       );
 
+      function checkMissedActivitySinceLastVisit() {
+        if (missedCatchupDone) return;
+        if (!initialBooksLoaded || !initialEntriesLoaded) return;
+        missedCatchupDone = true;
+
+        const prevSeen = state.lastSeenAt || 0;
+        if (prevSeen <= 0) {
+          markLastSeenNow();
+          return;
+        }
+
+        const missedMessages = [];
+
+        for (const book of state.books) {
+          if (book.ownerId !== state.activeUserId && (book.createdAt || 0) > prevSeen) {
+            const owner = getUserById(book.ownerId);
+            missedMessages.push(`${owner.name}님이 새 책 "${book.title}"을(를) 추가했어요!`);
+          }
+        }
+
+        for (const entry of state.entries) {
+          const book = state.books.find((b) => b.id === entry.bookId);
+          const bookLabel = book ? `"${book.title}"` : '책장';
+          if (entry.authorId !== state.activeUserId && (entry.createdAt || 0) > prevSeen) {
+            const author = getUserById(entry.authorId);
+            missedMessages.push(`${author.name}님이 ${bookLabel}에 새 구절을 등록했어요!`);
+          }
+          const replies = Array.isArray(entry.replies) ? entry.replies : [];
+          for (const rep of replies) {
+            if (rep.authorId !== state.activeUserId && (rep.createdAt || 0) > prevSeen) {
+              const repAuthor = getUserById(rep.authorId);
+              missedMessages.push(`${repAuthor.name}님이 ${bookLabel} 구절에 답글을 남겼어요!`);
+            }
+          }
+        }
+
+        markLastSeenNow();
+
+        if (missedMessages.length > 0) {
+          const summaryText =
+            missedMessages.length === 1
+              ? missedMessages[0]
+              : `부재 중 새 소식 ${missedMessages.length}건: ${missedMessages[0]}`;
+          playNotificationChime();
+          showToast(`🔔 ${summaryText}`);
+          if (
+            state.browserNotifyEnabled &&
+            'Notification' in window &&
+            Notification.permission === 'granted'
+          ) {
+            try {
+              new Notification('우리의 독서메모 · 부재 중 새 소식', {
+                body: missedMessages.slice(0, 3).join('\n'),
+              });
+            } catch (err) {}
+          }
+        }
+      }
+
       // 2) 책장 목록 실시간 구독
       onSnapshot(
         getPublicCollection('books'),
@@ -721,12 +879,14 @@
                 );
               }
             }
+            markLastSeenNow();
           }
           knownBookIds.clear();
           loadedBooks.forEach((b) => knownBookIds.add(b.id));
           initialBooksLoaded = true;
 
           state.books = loadedBooks;
+          checkMissedActivitySinceLastVisit();
           renderApp();
         },
         (error) => {
@@ -766,6 +926,7 @@
                 }
               }
             }
+            markLastSeenNow();
           }
 
           knownEntryIds.clear();
@@ -777,6 +938,7 @@
           initialEntriesLoaded = true;
 
           state.entries = loadedEntries;
+          checkMissedActivitySinceLastVisit();
           renderApp();
         },
         (error) => {
@@ -2181,17 +2343,45 @@
           authorId: state.activeUserId,
           text,
           date: getTodayDateStr(),
+          createdAt: Date.now(),
         });
 
         input.value = '';
+        markLastSeenNow();
         renderApp();
         await syncUpdateEntryReplies(entry.id, entry.replies);
         showToast('답글이 등록되었습니다.');
       });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          markLastSeenNow();
+        } else if (document.visibilityState === 'visible') {
+          missedCatchupDone = false;
+          if (initialBooksLoaded && initialEntriesLoaded) {
+            const prevSeen = state.lastSeenAt || 0;
+            const newEntries = state.entries.filter(
+              (e) => e.authorId !== state.activeUserId && (e.createdAt || 0) > prevSeen
+            );
+            if (newEntries.length > 0) {
+              const latest = newEntries[newEntries.length - 1];
+              const author = getUserById(latest.authorId);
+              playNotificationChime();
+              showToast(`🔔 앱을 꺼둔 사이 ${author.name}님이 새 구절을 등록했어요!`);
+            }
+            markLastSeenNow();
+          }
+        }
+      });
+
+      window.addEventListener('pagehide', () => {
+        markLastSeenNow();
+      });
     }
 
     // 초기화 실행
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      await hydratePrefsFromIndexedDb();
       bindGlobalEvents();
       renderApp();
       initRealtimeSync();
