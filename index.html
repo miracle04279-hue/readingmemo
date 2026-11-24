@@ -1259,7 +1259,7 @@
       const isMyBook = canManageBook(book);
       const bookEntries = state.entries
         .filter((e) => e.bookId === book.id)
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
       const entriesHtml =
         bookEntries.length === 0
