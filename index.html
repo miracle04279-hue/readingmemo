@@ -166,6 +166,8 @@
       updateDoc,
       deleteDoc,
       onSnapshot,
+      getDocs,
+      enableNetwork,
       collection,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -370,6 +372,7 @@
     let initialBooksLoaded = false;
     let initialEntriesLoaded = false;
     let missedCatchupDone = false;
+    let isRefreshingRemoteData = false;
     const knownBookIds = new Set();
     const knownEntryIds = new Set();
     const knownReplyIds = new Set();
@@ -711,6 +714,123 @@
       updateNewsBadgeUI();
     }
 
+    function applyBooksSnapshotDocs(docsList) {
+      const loadedBooks = docsList.map((item) => ({ ...item }));
+      loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      state.books = loadedBooks;
+
+      if (!initialBooksLoaded) {
+        initialBooksLoaded = true;
+        loadedBooks.forEach((b) => knownBookIds.add(b.id));
+        maybeNotifyMissedCatchup();
+      } else {
+        for (const b of loadedBooks) {
+          if (!knownBookIds.has(b.id)) {
+            knownBookIds.add(b.id);
+            if (b.ownerId && b.ownerId !== state.activeUserId) {
+              const owner = getUserById(b.ownerId);
+              triggerIncomingActivityAlert(
+                b.ownerId,
+                `${owner.name}님이 새 책 "${b.title}"을(를) 추가했어요.`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    function applyEntriesSnapshotDocs(docsList) {
+      const loadedEntries = docsList.map((item) => ({
+        ...item,
+        replies: Array.isArray(item.replies) ? item.replies.map((r) => ({ ...r })) : [],
+      }));
+      loadedEntries.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      state.entries = loadedEntries;
+
+      if (!initialEntriesLoaded) {
+        initialEntriesLoaded = true;
+        loadedEntries.forEach((e) => {
+          knownEntryIds.add(e.id);
+          const replies = Array.isArray(e.replies) ? e.replies : [];
+          replies.forEach((rep) => {
+            if (rep && rep.id) knownReplyIds.add(rep.id);
+          });
+        });
+        maybeNotifyMissedCatchup();
+      } else {
+        for (const entry of loadedEntries) {
+          const book = state.books.find((b) => b.id === entry.bookId);
+          const bookTitle = book ? book.title : '책장';
+
+          if (!knownEntryIds.has(entry.id)) {
+            knownEntryIds.add(entry.id);
+            if (entry.authorId && entry.authorId !== state.activeUserId) {
+              const author = getUserById(entry.authorId);
+              triggerIncomingActivityAlert(
+                entry.authorId,
+                `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`
+              );
+            }
+          }
+
+          const replies = Array.isArray(entry.replies) ? entry.replies : [];
+          for (const rep of replies) {
+            if (rep && rep.id && !knownReplyIds.has(rep.id)) {
+              knownReplyIds.add(rep.id);
+              if (rep.authorId && rep.authorId !== state.activeUserId) {
+                const repAuthor = getUserById(rep.authorId);
+                triggerIncomingActivityAlert(
+                  rep.authorId,
+                  `${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    async function forceSyncLatestRemoteData() {
+      if (!db || !currentAuthUser || isRefreshingRemoteData) return;
+      isRefreshingRemoteData = true;
+      try {
+        try {
+          await enableNetwork(db);
+        } catch (netErr) {}
+
+        const [booksSnap, entriesSnap] = await Promise.all([
+          getDocs(getPublicCollection('books')),
+          getDocs(getPublicCollection('entries')),
+        ]);
+
+        const freshBooks = [];
+        booksSnap.forEach((docSnap) => {
+          freshBooks.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        const freshEntries = [];
+        entriesSnap.forEach((docSnap) => {
+          freshEntries.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        applyBooksSnapshotDocs(freshBooks);
+        applyEntriesSnapshotDocs(freshEntries);
+
+        const prevSeen = state.lastSeenAt || 0;
+        const missedMessages = collectMissedActivityMessages(prevSeen);
+        markLastSeenNow();
+        if (missedMessages.length > 0 && initialBooksLoaded && initialEntriesLoaded) {
+          notifyMissedActivity(missedMessages);
+        }
+        updateNewsBadgeUI();
+        renderApp();
+      } catch (err) {
+        console.error('복귀 시 최신 데이터 동기화 오류:', err);
+      } finally {
+        isRefreshingRemoteData = false;
+      }
+    }
+
     async function initRealtimeSync() {
       if (!db || !auth) return;
       try {
@@ -769,28 +889,7 @@
           snapshot.forEach((docSnap) => {
             loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
           });
-          loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-          state.books = loadedBooks;
-
-          if (!initialBooksLoaded) {
-            initialBooksLoaded = true;
-            loadedBooks.forEach((b) => knownBookIds.add(b.id));
-            maybeNotifyMissedCatchup();
-          } else {
-            for (const b of loadedBooks) {
-              if (!knownBookIds.has(b.id)) {
-                knownBookIds.add(b.id);
-                if (b.ownerId && b.ownerId !== state.activeUserId) {
-                  const owner = getUserById(b.ownerId);
-                  triggerIncomingActivityAlert(
-                    b.ownerId,
-                    `${owner.name}님이 새 책 "${b.title}"을(를) 추가했어요.`
-                  );
-                }
-              }
-            }
-          }
-
+          applyBooksSnapshotDocs(loadedBooks);
           updateNewsBadgeUI();
           renderApp();
         },
@@ -807,51 +906,7 @@
           snapshot.forEach((docSnap) => {
             loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
           });
-          loadedEntries.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-          state.entries = loadedEntries;
-
-          if (!initialEntriesLoaded) {
-            initialEntriesLoaded = true;
-            loadedEntries.forEach((e) => {
-              knownEntryIds.add(e.id);
-              const replies = Array.isArray(e.replies) ? e.replies : [];
-              replies.forEach((rep) => {
-                if (rep && rep.id) knownReplyIds.add(rep.id);
-              });
-            });
-            maybeNotifyMissedCatchup();
-          } else {
-            for (const entry of loadedEntries) {
-              const book = state.books.find((b) => b.id === entry.bookId);
-              const bookTitle = book ? book.title : '책장';
-
-              if (!knownEntryIds.has(entry.id)) {
-                knownEntryIds.add(entry.id);
-                if (entry.authorId && entry.authorId !== state.activeUserId) {
-                  const author = getUserById(entry.authorId);
-                  triggerIncomingActivityAlert(
-                    entry.authorId,
-                    `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`
-                  );
-                }
-              }
-
-              const replies = Array.isArray(entry.replies) ? entry.replies : [];
-              for (const rep of replies) {
-                if (rep && rep.id && !knownReplyIds.has(rep.id)) {
-                  knownReplyIds.add(rep.id);
-                  if (rep.authorId && rep.authorId !== state.activeUserId) {
-                    const repAuthor = getUserById(rep.authorId);
-                    triggerIncomingActivityAlert(
-                      rep.authorId,
-                      `${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`
-                    );
-                  }
-                }
-              }
-            }
-          }
-
+          applyEntriesSnapshotDocs(loadedEntries);
           updateNewsBadgeUI();
           renderApp();
         },
@@ -2382,15 +2437,7 @@
         if (document.visibilityState === 'hidden') {
           markLastSeenNow();
         } else if (document.visibilityState === 'visible') {
-          if (initialBooksLoaded && initialEntriesLoaded) {
-            const prevSeen = state.lastSeenAt || 0;
-            const missedMessages = collectMissedActivityMessages(prevSeen);
-            markLastSeenNow();
-            if (missedMessages.length > 0) {
-              notifyMissedActivity(missedMessages);
-            }
-            updateNewsBadgeUI();
-          }
+          refreshViewOnResume();
         }
       });
 
@@ -2399,28 +2446,17 @@
       });
 
       function refreshViewOnResume() {
-        if (initialBooksLoaded && initialEntriesLoaded) {
-          const prevSeen = state.lastSeenAt || 0;
-          const missedMessages = collectMissedActivityMessages(prevSeen);
-          markLastSeenNow();
-          if (missedMessages.length > 0) {
-            notifyMissedActivity(missedMessages);
-          }
-        }
         updateNewsBadgeUI();
         renderApp();
+        forceSyncLatestRemoteData();
       }
 
-      window.addEventListener('pageshow', (e) => {
-        if (e.persisted) {
-          refreshViewOnResume();
-        } else {
-          renderApp();
-        }
+      window.addEventListener('pageshow', () => {
+        refreshViewOnResume();
       });
 
       window.addEventListener('focus', () => {
-        renderApp();
+        refreshViewOnResume();
       });
     }
 
