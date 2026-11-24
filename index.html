@@ -84,15 +84,19 @@
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
-          <!-- 공유하기 버튼 -->
+          <!-- 새소식 버튼 -->
           <button
-            id="shareAppBtn"
+            id="newsFeedBtn"
             type="button"
-            class="flex items-center gap-1 bg-amber-100/80 hover:bg-amber-200/80 active:scale-95 border border-amber-900/15 rounded-xl px-2.5 py-1.5 text-xs font-bold text-ink transition cursor-pointer"
-            aria-label="책장 링크 공유하기"
+            class="relative flex items-center gap-1 bg-amber-100/80 hover:bg-amber-200/80 active:scale-95 border border-amber-900/15 rounded-xl px-2.5 py-1.5 text-xs font-bold text-ink transition cursor-pointer"
+            aria-label="새소식 보기"
           >
-            <span>🔗</span>
-            <span>공유</span>
+            <span>🔔</span>
+            <span>새소식</span>
+            <span
+              id="newsBadgeCount"
+              class="hidden min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold items-center justify-center leading-none"
+            >0</span>
           </button>
 
           <!-- 현재 기록하는 사용자 (기기별 고정 잠금 지원) -->
@@ -166,11 +170,6 @@
       collection,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    /**
-     * =========================================================================
-     * 0. Firebase 설정 및 실시간 Firestore 연동 초기화
-     * =========================================================================
-     */
     const FALLBACK_FIREBASE_CONFIG = {
       apiKey: "AIzaSyDYv4AIaGOSA1VRRGPICMMVLOMtJY-G9VA",
       authDomain: "readingmemo-a1306.firebaseapp.com",
@@ -214,11 +213,6 @@
       return doc(db, "artifacts", appId, "public", "data", collectionName, docId);
     }
 
-    /**
-     * =========================================================================
-     * 1. 상태 관리 및 초기 데이터
-     * =========================================================================
-     */
     const AVATAR_PALETTE = [
       { bg: 'bg-amber-200', text: 'text-amber-950', dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
       { bg: 'bg-emerald-200', text: 'text-emerald-950', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
@@ -253,7 +247,6 @@
       } catch (e) {}
     }
 
-    // IndexedDB 보조 저장소 (모바일 브라우저 저장소 제한 대비)
     const IDB_NAME = 'readingmemo_device_store';
     const IDB_STORE = 'prefs';
 
@@ -341,16 +334,46 @@
       };
     }
 
+    function getSavedLastSeenAt() {
+      let lsVal = 0;
+      let ckVal = 0;
+      try {
+        lsVal = Number(localStorage.getItem('readingmemo_last_seen_at') || '0');
+      } catch (e) {}
+      ckVal = Number(readCookieValue('readingmemo_last_seen_at') || '0');
+      const resolved = Math.max(lsVal, ckVal);
+      if (resolved > 0) return resolved;
+
+      const initialNow = Date.now();
+      try {
+        localStorage.setItem('readingmemo_last_seen_at', String(initialNow));
+      } catch (e) {}
+      writeCookieValue('readingmemo_last_seen_at', String(initialNow), 365);
+      return initialNow;
+    }
+
     const persistedUser = getPersistedUserConfig();
 
-    function getSavedLastSeenAt() {
-      try {
-        const lsVal = Number(localStorage.getItem('readingmemo_last_seen_at') || '0');
-        if (lsVal > 0) return lsVal;
-      } catch (e) {}
-      const ckVal = Number(readCookieValue('readingmemo_last_seen_at') || '0');
-      return ckVal > 0 ? ckVal : 0;
-    }
+    const state = {
+      currentTab: 'home',
+      selectedBookId: null,
+      activeUserId: persistedUser.userId || 'user-kkyukkyu',
+      isUserLocked: persistedUser.userId ? persistedUser.isLocked : true,
+      soundAlertEnabled: localStorage.getItem('readingmemo_sound_alert') !== 'false',
+      browserNotifyEnabled: localStorage.getItem('readingmemo_browser_notify') === 'true',
+      lastSeenAt: getSavedLastSeenAt(),
+      cloudConnected: false,
+      users: [...DEFAULT_USERS],
+      books: [],
+      entries: [],
+    };
+
+    let initialBooksLoaded = false;
+    let initialEntriesLoaded = false;
+    let missedCatchupDone = false;
+    const knownBookIds = new Set();
+    const knownEntryIds = new Set();
+    const knownReplyIds = new Set();
 
     function markLastSeenNow() {
       const now = Date.now();
@@ -359,118 +382,84 @@
         localStorage.setItem('readingmemo_last_seen_at', String(now));
       } catch (e) {}
       writeCookieValue('readingmemo_last_seen_at', String(now), 365);
-      savePrefToIdb('lastSeenAt', now);
     }
-
-    const state = {
-      currentTab: 'home',
-      selectedBookId: null,
-      viewMode: 'home',
-      activeUserId: persistedUser.userId || 'user-kkyukkyu',
-      isUserLocked: persistedUser.isLocked,
-      lastSeenAt: getSavedLastSeenAt(),
-      cloudConnected: false,
-      soundAlertEnabled: localStorage.getItem('readingmemo_sound_alert') !== 'false',
-      browserNotifyEnabled: localStorage.getItem('readingmemo_browser_notify') === 'true',
-      users: [...DEFAULT_USERS],
-      books: [],
-      entries: [],
-    };
-
-    let initialBooksLoaded = false;
-    let initialEntriesLoaded = false;
-    let usersSnapshotInitialized = false;
-    let missedCatchupDone = false;
-    const knownBookIds = new Set();
-    const knownEntryIds = new Set();
-    const knownReplyIds = new Set();
 
     function setFixedActiveUser(userId, lock = true) {
       if (!userId) return;
       state.activeUserId = userId;
-      state.isUserLocked = lock;
+      state.isUserLocked = Boolean(lock);
+
       try {
         localStorage.setItem('readingmemo_active_user_id', userId);
-        localStorage.setItem('readingmemo_user_locked', String(lock));
+        localStorage.setItem('readingmemo_user_locked', String(state.isUserLocked));
       } catch (e) {}
+
       writeCookieValue('readingmemo_active_user_id', userId, 365);
-      writeCookieValue('readingmemo_user_locked', String(lock), 365);
-      savePrefToIdb('activeUserId', userId);
-      savePrefToIdb('isUserLocked', Boolean(lock));
+      writeCookieValue('readingmemo_user_locked', String(state.isUserLocked), 365);
 
       try {
-        window.name = `READINGMEMO_USER:${JSON.stringify({ userId, isLocked: lock })}`;
+        window.name = `READINGMEMO_USER:${JSON.stringify({
+          userId,
+          isLocked: state.isUserLocked,
+        })}`;
       } catch (e) {}
+
+      savePrefToIdb('readingmemo_active_user_id', userId);
+      savePrefToIdb('readingmemo_user_locked', String(state.isUserLocked));
 
       try {
-        if (window.location.protocol !== 'blob:' && window.location.protocol !== 'file:') {
-          const url = new URL(window.location.href);
-          url.searchParams.set('user', userId);
-          window.history.replaceState({}, '', url.toString());
-        }
+        const url = new URL(window.location.href);
+        url.searchParams.set('user', userId);
+        window.history.replaceState({}, '', url.toString());
       } catch (e) {}
-    }
-
-    // 앱 재실행 시에도 고정 상태가 유지되도록 초기 복원값 동기화
-    if (persistedUser.userId) {
-      setFixedActiveUser(persistedUser.userId, persistedUser.isLocked);
     }
 
     async function hydratePrefsFromIndexedDb() {
       try {
-        const [idbUser, idbLocked, idbLastSeen] = await Promise.all([
-          loadPrefFromIdb('activeUserId'),
-          loadPrefFromIdb('isUserLocked'),
-          loadPrefFromIdb('lastSeenAt'),
-        ]);
-        const currentLsUser = localStorage.getItem('readingmemo_active_user_id');
-        if (!currentLsUser && idbUser) {
-          setFixedActiveUser(idbUser, idbLocked !== false);
-          renderApp();
+        const savedUserId = await loadPrefFromIdb('readingmemo_active_user_id');
+        const savedLocked = await loadPrefFromIdb('readingmemo_user_locked');
+
+        if (!state.activeUserId && savedUserId) {
+          state.activeUserId = savedUserId;
         }
-        if (!state.lastSeenAt && Number(idbLastSeen) > 0) {
-          state.lastSeenAt = Number(idbLastSeen);
+        if (savedLocked === 'true' || savedLocked === 'false') {
+          state.isUserLocked = savedLocked === 'true';
         }
-      } catch (e) {}
+        if (state.activeUserId) {
+          setFixedActiveUser(state.activeUserId, state.isUserLocked);
+        }
+      } catch (e) {
+        console.error('IndexedDB 설정 복원 오류:', e);
+      }
     }
 
-    // 앱 재실행 시에도 고정 상태가 유지되도록 초기 복원값 동기화
-    if (persistedUser.userId) {
-      setFixedActiveUser(persistedUser.userId, persistedUser.isLocked);
-    }
-
-    /**
-     * =========================================================================
-     * 2. 공통 유틸리티 및 알림음 / 고해상도 이미지 처리
-     * =========================================================================
-     */
-    function escapeHtml(str) {
-      return String(str ?? '')
+    function escapeHtml(value) {
+      return String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/'/g, '&#39;');
+    }
+
+    function getTodayDateStr() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
 
     function getUserById(userId) {
       return (
         state.users.find((u) => u.id === userId) ||
-        state.users[0] || { id: 'unknown', name: '멤버', paletteIndex: 0 }
+        state.users[0] || { id: 'user-kkyukkyu', name: '뀨뀨', paletteIndex: 0 }
       );
     }
 
     function getPaletteForUser(user) {
-      const idx = (user?.paletteIndex ?? 0) % AVATAR_PALETTE.length;
-      return AVATAR_PALETTE[idx];
-    }
-
-    function getTodayDateStr() {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
+      const idx = Number(user?.paletteIndex ?? 0);
+      return AVATAR_PALETTE[((idx % AVATAR_PALETTE.length) + AVATAR_PALETTE.length) % AVATAR_PALETTE.length];
     }
 
     function canManageBook(book) {
@@ -480,26 +469,40 @@
     function canManageEntry(entry, book = null) {
       if (!entry) return false;
       const targetBook = book || state.books.find((b) => b.id === entry.bookId);
-      return Boolean(
-        entry.authorId === state.activeUserId &&
-          targetBook &&
-          targetBook.ownerId === state.activeUserId
-      );
+      const ownsBook = targetBook ? targetBook.ownerId === state.activeUserId : false;
+      return entry.authorId === state.activeUserId && ownsBook;
     }
 
     let toastTimer = null;
     function showToast(message) {
-      const el = document.getElementById('toastBanner');
-      if (!el) return;
-      el.textContent = message;
-      el.classList.remove('hidden');
+      const banner = document.getElementById('toastBanner');
+      if (!banner) return;
+      banner.textContent = message;
+      banner.classList.remove('hidden');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => {
-        el.classList.add('hidden');
-      }, 2800);
+        banner.classList.add('hidden');
+      }, 3000);
     }
 
-    // 부드러운 딩동 알림음 (Web Audio API)
+    function openModal(html) {
+      const backdrop = document.getElementById('modalBackdrop');
+      const card = document.getElementById('modalCard');
+      if (!backdrop || !card) return;
+      card.innerHTML = html;
+      backdrop.classList.remove('hidden');
+      backdrop.classList.add('flex');
+    }
+
+    function closeModal() {
+      const backdrop = document.getElementById('modalBackdrop');
+      const card = document.getElementById('modalCard');
+      if (!backdrop || !card) return;
+      card.innerHTML = '';
+      backdrop.classList.add('hidden');
+      backdrop.classList.remove('flex');
+    }
+
     function playNotificationChime() {
       if (!state.soundAlertEnabled) return;
       try {
@@ -508,102 +511,88 @@
         const ctx = new AudioCtx();
         const now = ctx.currentTime;
 
-        const notes = [880, 1174.66]; // A5 -> D6 맑은 딩동 화음
+        const notes = [659.25, 880];
         notes.forEach((freq, idx) => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
           osc.frequency.setValueAtTime(freq, now + idx * 0.14);
-
           gain.gain.setValueAtTime(0.001, now + idx * 0.14);
-          gain.gain.exponentialRampToValueAtTime(0.16, now + idx * 0.14 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.14 + 0.55);
-
+          gain.gain.exponentialRampToValueAtTime(0.14, now + idx * 0.14 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.14 + 0.35);
           osc.connect(gain);
           gain.connect(ctx.destination);
           osc.start(now + idx * 0.14);
-          osc.stop(now + idx * 0.14 + 0.58);
+          osc.stop(now + idx * 0.14 + 0.36);
         });
-      } catch (err) {
-        console.warn('알림음 재생 제한:', err);
-      }
+      } catch (err) {}
     }
 
     function triggerIncomingActivityAlert(actorId, message) {
       if (!actorId || actorId === state.activeUserId) return;
       playNotificationChime();
       showToast(`🔔 ${message}`);
-
+      updateNewsBadgeUI();
       if (
         state.browserNotifyEnabled &&
         'Notification' in window &&
         Notification.permission === 'granted'
       ) {
         try {
-          new Notification('우리의 독서메모', {
-            body: message,
-          });
-        } catch (err) {
-          console.warn('시스템 알림 표시 오류:', err);
+          new Notification('우리의 독서메모', { body: message });
+        } catch (err) {}
+      }
+    }
+
+    function collectMissedActivityMessages(sinceTs) {
+      const messages = [];
+      for (const book of state.books) {
+        if (book.ownerId !== state.activeUserId && Number(book.createdAt || 0) > sinceTs) {
+          const owner = getUserById(book.ownerId);
+          messages.push(`${owner.name}님이 새 책 "${book.title}"을(를) 올렸어요.`);
         }
       }
+      for (const entry of state.entries) {
+        const book = state.books.find((b) => b.id === entry.bookId);
+        const bookTitle = book ? book.title : '책장';
+        if (entry.authorId !== state.activeUserId && Number(entry.createdAt || 0) > sinceTs) {
+          const author = getUserById(entry.authorId);
+          messages.push(`${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`);
+        }
+        const replies = Array.isArray(entry.replies) ? entry.replies : [];
+        for (const rep of replies) {
+          if (rep.authorId !== state.activeUserId && Number(rep.createdAt || 0) > sinceTs) {
+            const repAuthor = getUserById(rep.authorId);
+            messages.push(`${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`);
+          }
+        }
+      }
+      return messages;
     }
 
-    function copyTextToClipboard(text) {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      let ok = false;
-      try {
-        ok = document.execCommand('copy');
-      } catch (e) {
-        ok = false;
-      }
-      document.body.removeChild(textarea);
-      return ok;
-    }
-
-    function handleShareAppLink() {
-      const shareUrlObj = new URL(window.location.href);
-      shareUrlObj.searchParams.delete('user');
-      const shareUrl = shareUrlObj.toString();
-      if (navigator.share) {
-        navigator
-          .share({
-            title: '우리의 독서메모',
-            text: '함께 책장과 인상 깊은 구절 사진을 기록해요!',
-            url: shareUrl,
-          })
-          .catch(() => {});
-        return;
-      }
-      if (copyTextToClipboard(shareUrl)) {
-        showToast('책장 공유 링크가 복사되었습니다! 카카오톡 등에 붙여넣어 공유해보세요.');
-      } else {
-        showToast('주소창의 링크를 복사해 공유해주세요.');
+    function notifyMissedActivity(messages) {
+      if (!Array.isArray(messages) || messages.length === 0) return;
+      playNotificationChime();
+      const summary =
+        messages.length === 1
+          ? messages[0]
+          : `앱이 꺼진 동안 새 소식 ${messages.length}건이 도착했어요! (${messages[0]})`;
+      showToast(`🔔 ${summary}`);
+      updateNewsBadgeUI();
+      if (
+        state.browserNotifyEnabled &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+      ) {
+        try {
+          new Notification('우리의 독서메모', { body: summary });
+        } catch (err) {}
       }
     }
 
-    function openModal(htmlContent) {
-      const backdrop = document.getElementById('modalBackdrop');
-      const card = document.getElementById('modalCard');
-      card.innerHTML = htmlContent;
-      backdrop.classList.remove('hidden');
-      backdrop.classList.add('flex');
-    }
+    window.__collectMissedActivityMessages = collectMissedActivityMessages;
+    window.__notifyMissedActivity = notifyMissedActivity;
 
-    function closeModal() {
-      const backdrop = document.getElementById('modalBackdrop');
-      const card = document.getElementById('modalCard');
-      backdrop.classList.add('hidden');
-      backdrop.classList.remove('flex');
-      card.innerHTML = '';
-    }
-
-    // 책 글자 선명도를 유지하면서 Firestore 용량(1MB)에 맞게 JPEG 압축
     function compressImageDataUrl(rawDataUrl, maxDimension = 1440, quality = 0.86) {
       return new Promise((resolve) => {
         if (!rawDataUrl || !rawDataUrl.startsWith('data:image/')) {
@@ -613,7 +602,7 @@
         const img = new Image();
         img.onload = () => {
           const w = img.naturalWidth || 1000;
-          const h = img.naturalHeight || 1000;
+          const h = img.naturalHeight || 750;
           const scale = Math.max(w, h) > maxDimension ? maxDimension / Math.max(w, h) : 1;
           const targetW = Math.max(1, Math.round(w * scale));
           const targetH = Math.max(1, Math.round(h * scale));
@@ -622,74 +611,40 @@
           c.height = targetH;
           const cctx = c.getContext('2d');
           cctx.drawImage(img, 0, 0, targetW, targetH);
-
-          let out = c.toDataURL('image/jpeg', quality);
-          if (out.length > 920000) {
-            out = c.toDataURL('image/jpeg', 0.76);
-          }
-          resolve(out);
+          resolve(c.toDataURL('image/jpeg', quality));
         };
         img.onerror = () => resolve(rawDataUrl);
         img.src = rawDataUrl;
       });
     }
 
-    function readFileAsDataUrl(file, maxDimension = 1440, quality = 0.86) {
-      return new Promise((resolve, reject) => {
-        if (!file) {
-          reject(new Error('선택된 파일이 없습니다.'));
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const raw = String(reader.result || '');
-          const compressed = await compressImageDataUrl(raw, maxDimension, quality);
-          resolve(compressed);
-        };
-        reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // 폰 기본 카메라 앱 바로 실행 + 갤러리 파일 선택 헬퍼
     function attachNativeCameraAndFileInputs(containerEl, onImageReady, maxDimension = 1440) {
-      const nativeCamInput = containerEl.querySelector('[data-native-camera-input]');
-      const fileInput = containerEl.querySelector('[data-file-input]');
-
-      const handleInputFile = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          showToast('사진을 선명하게 불러오는 중...');
-          const url = await readFileAsDataUrl(file, maxDimension, 0.86);
-          onImageReady(url);
-        } catch (err) {
-          showToast(err.message || '사진을 불러오지 못했습니다.');
-        } finally {
-          e.target.value = '';
-        }
-      };
-
-      nativeCamInput?.addEventListener('change', handleInputFile);
-      fileInput?.addEventListener('change', handleInputFile);
-
-      return {
-        stopStream() {},
-      };
+      const inputs = containerEl.querySelectorAll(
+        '[data-native-camera-input], [data-file-input]'
+      );
+      inputs.forEach((input) => {
+        input.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const rawUrl = String(reader.result || '');
+            const compressed = await compressImageDataUrl(rawUrl, maxDimension, 0.86);
+            onImageReady(compressed);
+          };
+          reader.readAsDataURL(file);
+          input.value = '';
+        });
+      });
+      return { stopStream: () => {} };
     }
 
-    /**
-     * =========================================================================
-     * 3. Firestore 실시간 동기화 및 CRUD 헬퍼
-     * =========================================================================
-     */
     async function syncSaveUser(userObj) {
       if (!db || !currentAuthUser) return;
       try {
         await setDoc(getPublicDoc('users', userObj.id), userObj);
       } catch (err) {
         console.error('사용자 저장 오류:', err);
-        showToast('클라우드 동기화에 실패했습니다.');
       }
     }
 
@@ -746,6 +701,17 @@
       }
     }
 
+    function maybeNotifyMissedCatchup() {
+      if (!initialBooksLoaded || !initialEntriesLoaded || missedCatchupDone) return;
+      missedCatchupDone = true;
+      const prevSeen = state.lastSeenAt || 0;
+      const missed = collectMissedActivityMessages(prevSeen);
+      if (missed.length > 0) {
+        notifyMissedActivity(missed);
+      }
+      updateNewsBadgeUI();
+    }
+
     async function initRealtimeSync() {
       if (!db || !auth) return;
       try {
@@ -783,81 +749,18 @@
           state.users = loadedUsers;
 
           const latestPersisted = getPersistedUserConfig();
-          if (latestPersisted.userId && loadedUsers.some((u) => u.id === latestPersisted.userId)) {
-            setFixedActiveUser(latestPersisted.userId, latestPersisted.isLocked);
-          } else if (!loadedUsers.some((u) => u.id === state.activeUserId) && loadedUsers[0]) {
-            if (usersSnapshotInitialized) {
-              setFixedActiveUser(loadedUsers[0].id, state.isUserLocked);
-            } else {
-              state.activeUserId = loadedUsers[0].id;
-            }
+          const candidateId = latestPersisted.userId || state.activeUserId;
+          if (state.users.some((u) => u.id === candidateId)) {
+            setFixedActiveUser(candidateId, latestPersisted.isLocked);
+          } else if (state.users[0]) {
+            setFixedActiveUser(state.users[0].id, true);
           }
-          usersSnapshotInitialized = true;
           renderApp();
         },
         (error) => {
           console.error('users 구독 오류:', error);
         }
       );
-
-      function checkMissedActivitySinceLastVisit() {
-        if (missedCatchupDone) return;
-        if (!initialBooksLoaded || !initialEntriesLoaded) return;
-        missedCatchupDone = true;
-
-        const prevSeen = state.lastSeenAt || 0;
-        if (prevSeen <= 0) {
-          markLastSeenNow();
-          return;
-        }
-
-        const missedMessages = [];
-
-        for (const book of state.books) {
-          if (book.ownerId !== state.activeUserId && (book.createdAt || 0) > prevSeen) {
-            const owner = getUserById(book.ownerId);
-            missedMessages.push(`${owner.name}님이 새 책 "${book.title}"을(를) 추가했어요!`);
-          }
-        }
-
-        for (const entry of state.entries) {
-          const book = state.books.find((b) => b.id === entry.bookId);
-          const bookLabel = book ? `"${book.title}"` : '책장';
-          if (entry.authorId !== state.activeUserId && (entry.createdAt || 0) > prevSeen) {
-            const author = getUserById(entry.authorId);
-            missedMessages.push(`${author.name}님이 ${bookLabel}에 새 구절을 등록했어요!`);
-          }
-          const replies = Array.isArray(entry.replies) ? entry.replies : [];
-          for (const rep of replies) {
-            if (rep.authorId !== state.activeUserId && (rep.createdAt || 0) > prevSeen) {
-              const repAuthor = getUserById(rep.authorId);
-              missedMessages.push(`${repAuthor.name}님이 ${bookLabel} 구절에 답글을 남겼어요!`);
-            }
-          }
-        }
-
-        markLastSeenNow();
-
-        if (missedMessages.length > 0) {
-          const summaryText =
-            missedMessages.length === 1
-              ? missedMessages[0]
-              : `부재 중 새 소식 ${missedMessages.length}건: ${missedMessages[0]}`;
-          playNotificationChime();
-          showToast(`🔔 ${summaryText}`);
-          if (
-            state.browserNotifyEnabled &&
-            'Notification' in window &&
-            Notification.permission === 'granted'
-          ) {
-            try {
-              new Notification('우리의 독서메모 · 부재 중 새 소식', {
-                body: missedMessages.slice(0, 3).join('\n'),
-              });
-            } catch (err) {}
-          }
-        }
-      }
 
       // 2) 책장 목록 실시간 구독
       onSnapshot(
@@ -868,25 +771,28 @@
             loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
           });
           loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.books = loadedBooks;
 
-          if (initialBooksLoaded) {
-            for (const book of loadedBooks) {
-              if (!knownBookIds.has(book.id)) {
-                const owner = getUserById(book.ownerId);
-                triggerIncomingActivityAlert(
-                  book.ownerId,
-                  `${owner.name}님이 새 책 "${book.title}"을(를) 책장에 꽂았어요!`
-                );
+          if (!initialBooksLoaded) {
+            initialBooksLoaded = true;
+            loadedBooks.forEach((b) => knownBookIds.add(b.id));
+            maybeNotifyMissedCatchup();
+          } else {
+            for (const b of loadedBooks) {
+              if (!knownBookIds.has(b.id)) {
+                knownBookIds.add(b.id);
+                if (b.ownerId && b.ownerId !== state.activeUserId) {
+                  const owner = getUserById(b.ownerId);
+                  triggerIncomingActivityAlert(
+                    b.ownerId,
+                    `${owner.name}님이 새 책 "${b.title}"을(를) 추가했어요.`
+                  );
+                }
               }
             }
-            markLastSeenNow();
           }
-          knownBookIds.clear();
-          loadedBooks.forEach((b) => knownBookIds.add(b.id));
-          initialBooksLoaded = true;
 
-          state.books = loadedBooks;
-          checkMissedActivitySinceLastVisit();
+          updateNewsBadgeUI();
           renderApp();
         },
         (error) => {
@@ -903,42 +809,51 @@
             loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
           });
           loadedEntries.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.entries = loadedEntries;
 
-          if (initialEntriesLoaded) {
+          if (!initialEntriesLoaded) {
+            initialEntriesLoaded = true;
+            loadedEntries.forEach((e) => {
+              knownEntryIds.add(e.id);
+              const replies = Array.isArray(e.replies) ? e.replies : [];
+              replies.forEach((rep) => {
+                if (rep && rep.id) knownReplyIds.add(rep.id);
+              });
+            });
+            maybeNotifyMissedCatchup();
+          } else {
             for (const entry of loadedEntries) {
+              const book = state.books.find((b) => b.id === entry.bookId);
+              const bookTitle = book ? book.title : '책장';
+
               if (!knownEntryIds.has(entry.id)) {
-                const author = getUserById(entry.authorId);
-                const book = state.books.find((b) => b.id === entry.bookId);
-                const bookLabel = book ? `"${book.title}"` : '책장';
-                triggerIncomingActivityAlert(
-                  entry.authorId,
-                  `${author.name}님이 ${bookLabel}에 새 구절을 올렸어요!`
-                );
-              }
-              const replies = Array.isArray(entry.replies) ? entry.replies : [];
-              for (const rep of replies) {
-                if (!knownReplyIds.has(rep.id)) {
-                  const repAuthor = getUserById(rep.authorId);
+                knownEntryIds.add(entry.id);
+                if (entry.authorId && entry.authorId !== state.activeUserId) {
+                  const author = getUserById(entry.authorId);
                   triggerIncomingActivityAlert(
-                    rep.authorId,
-                    `${repAuthor.name}님이 구절에 답글을 남겼어요: "${rep.text}"`
+                    entry.authorId,
+                    `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`
                   );
                 }
               }
+
+              const replies = Array.isArray(entry.replies) ? entry.replies : [];
+              for (const rep of replies) {
+                if (rep && rep.id && !knownReplyIds.has(rep.id)) {
+                  knownReplyIds.add(rep.id);
+                  if (rep.authorId && rep.authorId !== state.activeUserId) {
+                    const repAuthor = getUserById(rep.authorId);
+                    triggerIncomingActivityAlert(
+                      rep.authorId,
+                      `${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`
+                    );
+                  }
+                }
+              }
             }
-            markLastSeenNow();
           }
 
-          knownEntryIds.clear();
-          knownReplyIds.clear();
-          loadedEntries.forEach((e) => {
-            knownEntryIds.add(e.id);
-            (Array.isArray(e.replies) ? e.replies : []).forEach((r) => knownReplyIds.add(r.id));
-          });
-          initialEntriesLoaded = true;
-
-          state.entries = loadedEntries;
-          checkMissedActivitySinceLastVisit();
+          updateNewsBadgeUI();
           renderApp();
         },
         (error) => {
@@ -947,11 +862,159 @@
       );
     }
 
-    /**
-     * =========================================================================
-     * 4. 상단 사용자 고정 배지 및 메인 뷰 라우터
-     * =========================================================================
-     */
+    function getRecentActivityItems() {
+      const items = [];
+
+      for (const book of state.books) {
+        if (book.ownerId === state.activeUserId) continue;
+        const owner = getUserById(book.ownerId);
+        const ts = Number(book.createdAt || 0);
+        items.push({
+          id: `news-book-${book.id}`,
+          type: 'book',
+          bookId: book.id,
+          timestamp: ts,
+          actorName: owner.name,
+          summary: `${owner.name}님이 새 책 "${book.title}"을(를) 책장에 꽂았어요`,
+          dateLabel: ts ? new Date(ts).toLocaleDateString('ko-KR') : '',
+        });
+      }
+
+      for (const entry of state.entries) {
+        const book = state.books.find((b) => b.id === entry.bookId);
+        const bookTitle = book ? book.title : '책장';
+        const entryTs = Number(entry.createdAt || 0);
+
+        if (entry.authorId !== state.activeUserId) {
+          const author = getUserById(entry.authorId);
+          items.push({
+            id: `news-entry-${entry.id}`,
+            type: 'entry',
+            bookId: entry.bookId,
+            timestamp: entryTs,
+            actorName: author.name,
+            summary: `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요`,
+            dateLabel: entry.photoDate || (entryTs ? new Date(entryTs).toLocaleDateString('ko-KR') : ''),
+          });
+        }
+
+        const replies = Array.isArray(entry.replies) ? entry.replies : [];
+        for (const rep of replies) {
+          const repTs = Number(rep.createdAt || 0);
+          if (rep.authorId !== state.activeUserId) {
+            const repAuthor = getUserById(rep.authorId);
+            items.push({
+              id: `news-reply-${rep.id}`,
+              type: 'reply',
+              bookId: entry.bookId,
+              timestamp: repTs,
+              actorName: repAuthor.name,
+              summary: `${repAuthor.name}님이 "${bookTitle}" 구절에 답글: "${rep.text}"`,
+              dateLabel: rep.date || (repTs ? new Date(repTs).toLocaleDateString('ko-KR') : ''),
+            });
+          }
+        }
+      }
+
+      items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      return items;
+    }
+
+    function updateNewsBadgeUI() {
+      const badgeEl = document.getElementById('newsBadgeCount');
+      if (!badgeEl) return;
+      const since = state.lastSeenAt || 0;
+      const unreadCount = getRecentActivityItems().filter(
+        (item) => Number(item.timestamp || 0) > since
+      ).length;
+
+      if (unreadCount > 0) {
+        badgeEl.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+        badgeEl.classList.remove('hidden');
+        badgeEl.classList.add('inline-flex');
+      } else {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('inline-flex');
+      }
+    }
+
+    function openNewsFeedModal() {
+      const since = state.lastSeenAt || 0;
+      const items = getRecentActivityItems().slice(0, 30);
+      markLastSeenNow();
+      updateNewsBadgeUI();
+
+      const listHtml =
+        items.length === 0
+          ? `
+            <div class="rounded-2xl bg-paper border border-dashed border-amber-900/20 p-6 text-center space-y-1">
+              <p class="text-sm font-bold text-ink">아직 도착한 새소식이 없어요</p>
+              <p class="text-xs text-muted">다른 멤버가 새 책, 구절, 답글을 남기면 여기에 모여요.</p>
+            </div>
+          `
+          : items
+              .map((item) => {
+                const isUnread = Number(item.timestamp || 0) > since;
+                const icon = item.type === 'book' ? '📚' : item.type === 'entry' ? '📸' : '💬';
+                return `
+                  <button
+                    type="button"
+                    data-jump-news-book="${item.bookId}"
+                    class="w-full text-left rounded-2xl p-3 border transition flex items-start justify-between gap-2 ${
+                      isUnread
+                        ? 'bg-accentSoft/60 border-accent/40 hover:bg-accentSoft'
+                        : 'bg-paper border-amber-900/10 hover:bg-amber-100/60'
+                    }"
+                  >
+                    <div class="flex items-start gap-2.5 min-w-0">
+                      <span class="text-base shrink-0 mt-0.5">${icon}</span>
+                      <div class="min-w-0">
+                        <p class="text-xs font-bold text-ink leading-snug break-words">${escapeHtml(item.summary)}</p>
+                        <p class="text-[11px] text-muted mt-0.5">${escapeHtml(item.dateLabel)}</p>
+                      </div>
+                    </div>
+                    ${
+                      isUnread
+                        ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent text-white">NEW</span>`
+                        : `<span class="shrink-0 text-xs text-muted">→</span>`
+                    }
+                  </button>
+                `;
+              })
+              .join('');
+
+      openModal(`
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-semibold text-accent">실시간 활동 피드</span>
+            <h3 class="font-serif text-lg font-bold text-ink">🔔 새소식</h3>
+          </div>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
+        </div>
+
+        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-0.5">
+          ${listHtml}
+        </div>
+      `);
+
+      const modalCard = document.getElementById('modalCard');
+      modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
+        btn.addEventListener('click', closeModal);
+      });
+
+      modalCard.querySelectorAll('[data-jump-news-book]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetBookId = btn.getAttribute('data-jump-news-book');
+          closeModal();
+          if (targetBookId && state.books.some((b) => b.id === targetBookId)) {
+            state.currentTab = 'home';
+            state.selectedBookId = targetBookId;
+            renderApp();
+          }
+        });
+      });
+    }
+
     function renderActiveUserBadge() {
       const activeUser = getUserById(state.activeUserId);
       const palette = getPaletteForUser(activeUser);
@@ -1029,6 +1092,7 @@
       const navSettingsBtn = document.getElementById('navSettingsBtn');
 
       renderActiveUserBadge();
+      updateNewsBadgeUI();
 
       if (state.currentTab === 'home') {
         navHomeBtn.className =
@@ -1075,11 +1139,6 @@
       renderHomeView(mainContent);
     }
 
-    /**
-     * =========================================================================
-     * 5. 뷰 1: 책장 홈 (Home View)
-     * =========================================================================
-     */
     function renderHomeView(container) {
       const shelvesHtml = state.users
         .map((user) => {
@@ -1207,11 +1266,6 @@
       `;
     }
 
-    /**
-     * =========================================================================
-     * 6. 뷰 2: 책 상세 & 구절 피드 (Book Detail View)
-     * =========================================================================
-     */
     function renderBookDetailView(container, book) {
       const owner = getUserById(book.ownerId);
       const bookEntries = state.entries.filter((e) => e.bookId === book.id);
@@ -1260,7 +1314,6 @@
 
                 return `
                   <article class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3.5">
-                    <!-- 구절 카드 상단 메타 정보 -->
                     <div class="flex items-center justify-between gap-2">
                       <div class="flex items-center gap-2 min-w-0">
                         <span class="w-7 h-7 rounded-full ${authorPalette.bg} ${authorPalette.text} text-xs font-bold flex items-center justify-center shrink-0">
@@ -1296,7 +1349,6 @@
                       }
                     </div>
 
-                    <!-- 구절 이미지 -->
                     <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-amber-50">
                       <img
                         src="${escapeHtml(entry.photoUrl)}"
@@ -1305,7 +1357,6 @@
                       />
                     </div>
 
-                    <!-- 답글 섹션 -->
                     <div class="pt-1 border-t border-amber-900/10 space-y-2.5">
                       <div class="flex items-center justify-between">
                         <span class="text-xs font-bold text-muted">💬 함께 나눈 답글 (${replies.length})</span>
@@ -1338,7 +1389,6 @@
 
       container.innerHTML = `
         <div class="space-y-5">
-          <!-- 책 정보 요약 배너 -->
           <div class="rounded-3xl bg-surface p-4 border border-amber-900/10 shadow-xs flex items-center gap-3.5">
             <div class="w-16 h-24 rounded-r-xl rounded-l-sm overflow-hidden bg-amber-100 book-spine-edge border border-amber-900/15 shrink-0">
               ${
@@ -1371,7 +1421,6 @@
             </div>
           </div>
 
-          <!-- 내 책장인 경우에만 구절 사진 추가 버튼 표시 -->
           ${
             isBookOwner
               ? `
@@ -1391,7 +1440,6 @@
               `
           }
 
-          <!-- 구절 목록 피드 -->
           <div class="space-y-4">
             ${entriesHtml}
           </div>
@@ -1399,11 +1447,6 @@
       `;
     }
 
-    /**
-     * =========================================================================
-     * 7. 뷰 3: 설정 (Settings View)
-     * =========================================================================
-     */
     function renderSettingsView(container) {
       const usersListHtml = state.users
         .map((user) => {
@@ -1446,7 +1489,6 @@
 
       container.innerHTML = `
         <div class="space-y-5">
-          <!-- 새 구절 및 답글 알림 설정 -->
           <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
             <div>
               <h2 class="font-serif text-base font-bold text-ink">🔔 새 기록 및 답글 알림</h2>
@@ -1498,7 +1540,6 @@
             </button>
           </section>
 
-          <!-- 사용자 목록 및 추가 -->
           <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
             <div>
               <h2 class="font-serif text-base font-bold text-ink">👥 함께 쓰는 사람들</h2>
@@ -1597,11 +1638,6 @@
       }
     }
 
-    /**
-     * =========================================================================
-     * 8. 모달 1: 책장에 새 책 추가 / 삭제 / 표지 수정
-     * =========================================================================
-     */
     function openAddBookModal(ownerId) {
       if (ownerId !== state.activeUserId) {
         showToast('본인의 책장에만 책을 추가할 수 있어요.');
@@ -1718,7 +1754,9 @@
           coverImage: compressedCover,
           createdAt: Date.now(),
         };
+        knownBookIds.add(newBook.id);
         state.books.push(newBook);
+        markLastSeenNow();
         closeModal();
         renderApp();
         await syncSaveBook(newBook);
@@ -1852,11 +1890,6 @@
       });
     }
 
-    /**
-     * =========================================================================
-     * 9. 모달 2: 구절 사진 촬영/선택 + 형광펜 밑줄 캔버스 + 날짜 지정
-     * =========================================================================
-     */
     function openEntryEditorModal({ book, existingEntry = null }) {
       if (!canManageBook(book)) {
         showToast('본인의 책장에 있는 책에만 구절을 기록할 수 있어요.');
@@ -1900,7 +1933,6 @@
         </div>
 
         <form id="entryEditorForm" class="space-y-4">
-          <!-- 1) 폰 기본 카메라 앱 바로 실행 및 사진 불러오기 -->
           <div class="space-y-2">
             <label class="block text-xs font-bold text-ink">1. 구절 사진 촬영 또는 선택 <span class="text-accent">*</span></label>
             <div class="grid grid-cols-2 gap-2">
@@ -1915,7 +1947,6 @@
             </div>
           </div>
 
-          <!-- 2) 형광펜 밑줄 캔버스 -->
           <div id="canvasEditorSection" class="${photoDataUrl ? '' : 'hidden'} space-y-2.5">
             <div class="flex items-center justify-between">
               <label class="text-xs font-bold text-ink">2. 손가락이나 마우스로 형광펜 밑줄 긋기</label>
@@ -1924,7 +1955,6 @@
               </button>
             </div>
 
-            <!-- 형광펜 색상 팔레트 & 굵기 -->
             <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-paper p-2.5 border border-amber-900/10">
               <div class="flex flex-wrap items-center gap-1.5" id="highlightPaletteGroup">
                 ${colorSwatchesHtml}
@@ -1936,13 +1966,11 @@
               </div>
             </div>
 
-            <!-- 실제 그림이 그려지는 캔버스 -->
             <div class="rounded-2xl overflow-hidden border border-amber-900/20 bg-amber-50">
               <canvas id="highlightCanvas" class="highlighter-canvas w-full h-auto block"></canvas>
             </div>
           </div>
 
-          <!-- 3) 사진 날짜 지정 -->
           <div>
             <label class="block text-xs font-bold text-ink mb-1">3. 사진 기록 날짜</label>
             <input
@@ -2163,7 +2191,9 @@
             replies: [],
             createdAt: Date.now(),
           };
+          knownEntryIds.add(newEntry.id);
           state.entries.push(newEntry);
+          markLastSeenNow();
           closeModal();
           renderApp();
           await syncSaveEntry(newEntry);
@@ -2204,11 +2234,6 @@
       });
     }
 
-    /**
-     * =========================================================================
-     * 10. 전역 이벤트 위임 바인딩
-     * =========================================================================
-     */
     function bindGlobalEvents() {
       document.getElementById('navHomeBtn').addEventListener('click', () => {
         state.currentTab = 'home';
@@ -2226,8 +2251,8 @@
         renderApp();
       });
 
-      document.getElementById('shareAppBtn')?.addEventListener('click', () => {
-        handleShareAppLink();
+      document.getElementById('newsFeedBtn')?.addEventListener('click', () => {
+        openNewsFeedModal();
       });
 
       document.addEventListener('click', (e) => {
@@ -2338,8 +2363,10 @@
           entry.replies = [];
         }
 
+        const replyId = `reply-${Date.now()}`;
+        knownReplyIds.add(replyId);
         entry.replies.push({
-          id: `reply-${Date.now()}`,
+          id: replyId,
           authorId: state.activeUserId,
           text,
           date: getTodayDateStr(),
@@ -2357,19 +2384,14 @@
         if (document.visibilityState === 'hidden') {
           markLastSeenNow();
         } else if (document.visibilityState === 'visible') {
-          missedCatchupDone = false;
           if (initialBooksLoaded && initialEntriesLoaded) {
             const prevSeen = state.lastSeenAt || 0;
-            const newEntries = state.entries.filter(
-              (e) => e.authorId !== state.activeUserId && (e.createdAt || 0) > prevSeen
-            );
-            if (newEntries.length > 0) {
-              const latest = newEntries[newEntries.length - 1];
-              const author = getUserById(latest.authorId);
-              playNotificationChime();
-              showToast(`🔔 앱을 꺼둔 사이 ${author.name}님이 새 구절을 등록했어요!`);
-            }
+            const missedMessages = collectMissedActivityMessages(prevSeen);
             markLastSeenNow();
+            if (missedMessages.length > 0) {
+              notifyMissedActivity(missedMessages);
+            }
+            updateNewsBadgeUI();
           }
         }
       });
@@ -2379,7 +2401,6 @@
       });
     }
 
-    // 초기화 실행
     window.addEventListener('DOMContentLoaded', async () => {
       await hydratePrefsFromIndexedDb();
       bindGlobalEvents();
