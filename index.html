@@ -2548,10 +2548,21 @@
             <div class="flex flex-wrap items-center gap-1.5">
               ${swatchesHtml}
             </div>
+            <div class="flex items-center justify-between gap-2 pt-0.5">
+              <span class="text-[11px] text-muted">한 손가락: 형광펜 · 두 손가락: 확대/이동</span>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" data-zoom-out class="w-7 h-7 rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold cursor-pointer">-</button>
+                <span data-zoom-label class="min-w-[42px] text-center text-[11px] font-bold text-ink tabular-nums">100%</span>
+                <button type="button" data-zoom-in class="w-7 h-7 rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold cursor-pointer">+</button>
+                <button type="button" data-zoom-reset class="rounded-lg bg-amber-100/80 hover:bg-amber-200/80 text-muted text-[11px] font-semibold px-2 h-7 cursor-pointer">맞춤</button>
+              </div>
+            </div>
           </div>
 
-          <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper min-h-[180px] flex items-center justify-center">
-            <canvas data-hl-canvas class="highlighter-canvas w-full h-auto hidden"></canvas>
+          <div data-canvas-viewport class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper min-h-[180px] flex items-center justify-center relative touch-none select-none">
+            <div data-canvas-stage class="w-full origin-top-left transition-transform duration-75 ease-out will-change-transform">
+              <canvas data-hl-canvas class="highlighter-canvas w-full h-auto hidden"></canvas>
+            </div>
             <p data-hl-placeholder class="text-xs text-muted p-6 text-center">
               카메라로 구절을 찍거나 사진을 선택하면<br/>손가락이나 마우스로 형광펜 밑줄을 그을 수 있어요.
             </p>
@@ -2576,9 +2587,71 @@
 
       const modalCard = document.getElementById('modalCard');
       const camHelper = createPhotoCaptureController(modalCard);
+      const viewport = modalCard.querySelector('[data-canvas-viewport]');
+      const stage = modalCard.querySelector('[data-canvas-stage]');
       const canvas = modalCard.querySelector('[data-hl-canvas]');
       const placeholder = modalCard.querySelector('[data-hl-placeholder]');
+      const zoomLabel = modalCard.querySelector('[data-zoom-label]');
       const ctx = canvas.getContext('2d');
+
+      let zoomScale = 1;
+      let panX = 0;
+      let panY = 0;
+      let isPinching = false;
+      let pinchStartDist = 0;
+      let pinchStartScale = 1;
+      let pinchStartMid = { x: 0, y: 0 };
+      let pinchStartPan = { x: 0, y: 0 };
+
+      const clampPan = () => {
+        if (!viewport) return;
+        const vw = viewport.clientWidth || 1;
+        const vh = viewport.clientHeight || 1;
+        const maxPanX = Math.max(0, vw * (zoomScale - 1));
+        const maxPanY = Math.max(0, vh * (zoomScale - 1));
+        panX = Math.min(0, Math.max(-maxPanX, panX));
+        panY = Math.min(0, Math.max(-maxPanY, panY));
+      };
+
+      const applyCanvasTransform = () => {
+        clampPan();
+        if (stage) {
+          stage.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${zoomScale})`;
+        }
+        if (zoomLabel) {
+          zoomLabel.textContent = `${Math.round(zoomScale * 100)}%`;
+        }
+      };
+
+      const setZoomAroundPoint = (nextScale, focalClientX, focalClientY) => {
+        const clampedScale = Math.min(4, Math.max(1, nextScale));
+        if (!viewport) {
+          zoomScale = clampedScale;
+          applyCanvasTransform();
+          return;
+        }
+        const rect = viewport.getBoundingClientRect();
+        const fx = focalClientX - rect.left;
+        const fy = focalClientY - rect.top;
+        const ratio = clampedScale / zoomScale;
+        panX = fx - (fx - panX) * ratio;
+        panY = fy - (fy - panY) * ratio;
+        zoomScale = clampedScale;
+        if (zoomScale <= 1.001) {
+          zoomScale = 1;
+          panX = 0;
+          panY = 0;
+        }
+        applyCanvasTransform();
+      };
+
+      const resetZoomAndPan = () => {
+        zoomScale = 1;
+        panX = 0;
+        panY = 0;
+        isPinching = false;
+        applyCanvasTransform();
+      };
 
       const loadImageOntoCanvas = (src) => {
         if (!src) return;
@@ -2593,6 +2666,7 @@
           hasBaseImageLoaded = true;
           canvas.classList.remove('hidden');
           if (placeholder) placeholder.classList.add('hidden');
+          resetZoomAndPan();
         };
         img.src = src;
       };
@@ -2612,7 +2686,7 @@
       };
 
       const startStroke = (clientX, clientY) => {
-        if (!hasBaseImageLoaded) return;
+        if (!hasBaseImageLoaded || isPinching) return;
         isDrawing = true;
         const pt = getCanvasCoords(clientX, clientY);
         lastX = pt.x;
@@ -2620,7 +2694,7 @@
       };
 
       const moveStroke = (clientX, clientY) => {
-        if (!isDrawing || !hasBaseImageLoaded) return;
+        if (!isDrawing || !hasBaseImageLoaded || isPinching) return;
         const pt = getCanvasCoords(clientX, clientY);
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
@@ -2641,23 +2715,113 @@
         isDrawing = false;
       };
 
+      const getTouchDistance = (t1, t2) =>
+        Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+      const getTouchMidpoint = (t1, t2) => ({
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2,
+      });
+
       canvas.addEventListener('mousedown', (e) => startStroke(e.clientX, e.clientY));
       canvas.addEventListener('mousemove', (e) => moveStroke(e.clientX, e.clientY));
       window.addEventListener('mouseup', endStroke);
 
-      canvas.addEventListener('touchstart', (e) => {
-        if (e.touches[0]) {
+      viewport?.addEventListener('wheel', (e) => {
+        if (!hasBaseImageLoaded) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.25 : -0.25;
+        setZoomAroundPoint(zoomScale + delta, e.clientX, e.clientY);
+      }, { passive: false });
+
+      viewport?.addEventListener('touchstart', (e) => {
+        if (!hasBaseImageLoaded) return;
+        if (e.touches.length >= 2) {
+          e.preventDefault();
+          isDrawing = false;
+          isPinching = true;
+          pinchStartDist = getTouchDistance(e.touches[0], e.touches[1]) || 1;
+          pinchStartScale = zoomScale;
+          pinchStartMid = getTouchMidpoint(e.touches[0], e.touches[1]);
+          pinchStartPan = { x: panX, y: panY };
+          return;
+        }
+        if (e.touches.length === 1 && !isPinching) {
           e.preventDefault();
           startStroke(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: false });
-      canvas.addEventListener('touchmove', (e) => {
-        if (e.touches[0]) {
+
+      viewport?.addEventListener('touchmove', (e) => {
+        if (!hasBaseImageLoaded) return;
+        if (e.touches.length >= 2) {
+          e.preventDefault();
+          isDrawing = false;
+          const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+          const currentMid = getTouchMidpoint(e.touches[0], e.touches[1]);
+          if (!isPinching) {
+            isPinching = true;
+            pinchStartDist = currentDist || 1;
+            pinchStartScale = zoomScale;
+            pinchStartMid = currentMid;
+            pinchStartPan = { x: panX, y: panY };
+            return;
+          }
+          const nextScale = Math.min(4, Math.max(1, pinchStartScale * (currentDist / (pinchStartDist || 1))));
+          const rect = viewport.getBoundingClientRect();
+          const startFocalX = pinchStartMid.x - rect.left;
+          const startFocalY = pinchStartMid.y - rect.top;
+          const curFocalX = currentMid.x - rect.left;
+          const curFocalY = currentMid.y - rect.top;
+          const ratio = nextScale / pinchStartScale;
+
+          zoomScale = nextScale;
+          if (zoomScale <= 1.001) {
+            zoomScale = 1;
+            panX = 0;
+            panY = 0;
+          } else {
+            panX = curFocalX - (startFocalX - pinchStartPan.x) * ratio;
+            panY = curFocalY - (startFocalY - pinchStartPan.y) * ratio;
+          }
+          applyCanvasTransform();
+          return;
+        }
+        if (e.touches.length === 1 && !isPinching && isDrawing) {
           e.preventDefault();
           moveStroke(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: false });
-      canvas.addEventListener('touchend', endStroke);
+
+      viewport?.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) {
+          isPinching = false;
+        }
+        if (e.touches.length === 0) {
+          endStroke();
+        }
+      });
+
+      viewport?.addEventListener('touchcancel', () => {
+        isPinching = false;
+        endStroke();
+      });
+
+      modalCard.querySelector('[data-zoom-in]')?.addEventListener('click', () => {
+        if (!hasBaseImageLoaded || !viewport) return;
+        const rect = viewport.getBoundingClientRect();
+        setZoomAroundPoint(zoomScale + 0.4, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      });
+
+      modalCard.querySelector('[data-zoom-out]')?.addEventListener('click', () => {
+        if (!hasBaseImageLoaded || !viewport) return;
+        const rect = viewport.getBoundingClientRect();
+        setZoomAroundPoint(zoomScale - 0.4, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      });
+
+      modalCard.querySelector('[data-zoom-reset]')?.addEventListener('click', () => {
+        resetZoomAndPan();
+      });
 
       modalCard.querySelectorAll('[data-hl-color]').forEach((btn) => {
         btn.addEventListener('click', () => {
