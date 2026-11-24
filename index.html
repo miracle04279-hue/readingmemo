@@ -531,6 +531,60 @@
       backdrop.classList.remove('flex');
     }
 
+    // 책 표지 확대 보기 모달 열기
+    function openBookCoverZoomModal(bookId) {
+      const book = state.books.find((b) => b.id === bookId);
+      if (!book) return;
+      const owner = getUserById(book.ownerId);
+      const palette = getPaletteForUser(owner);
+
+      const zoomedCoverHtml = book.coverImage
+        ? `
+          <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper shadow-sm">
+            <img
+              src="${escapeHtml(book.coverImage)}"
+              alt="${escapeHtml(book.title)} 표지 확대"
+              class="w-full max-h-[62vh] object-contain mx-auto block bg-amber-50/50"
+            />
+          </div>
+        `
+        : `
+          <div class="w-48 h-64 mx-auto rounded-r-2xl rounded-l-md flex flex-col justify-between p-4 ${palette.bg} ${palette.text} book-spine-edge border border-amber-900/15">
+            <span class="text-xs font-bold opacity-80">${escapeHtml(owner.name)}의 책장</span>
+            <span class="font-serif text-xl font-bold leading-snug">${escapeHtml(book.title)}</span>
+            <span class="text-xs opacity-80">${escapeHtml(book.author || '지은이 미상')}</span>
+          </div>
+        `;
+
+      openModal(`
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="text-xs font-semibold text-accent">${escapeHtml(owner.name)}의 책장 · 표지 확대</span>
+            <h3 class="font-serif text-lg font-bold text-ink leading-snug">${escapeHtml(book.title)}</h3>
+          </div>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center shrink-0 cursor-pointer">×</button>
+        </div>
+
+        ${zoomedCoverHtml}
+
+        <div class="flex items-center justify-between text-xs text-muted px-1">
+          <span>지은이: ${escapeHtml(book.author || '지은이 미상')}</span>
+          <span>소장: ${escapeHtml(owner.name)}</span>
+        </div>
+
+        <div class="pt-1">
+          <button type="button" data-close-modal class="w-full rounded-2xl bg-accent text-white text-sm font-bold py-2.5 cursor-pointer">
+            닫기
+          </button>
+        </div>
+      `);
+
+      const modalCard = document.getElementById('modalCard');
+      modalCard?.querySelectorAll('[data-close-modal]').forEach((btn) => {
+        btn.addEventListener('click', closeModal);
+      });
+    }
+
     function playNotificationChime() {
       if (!state.soundAlertEnabled) return;
       try {
@@ -1379,7 +1433,13 @@
       container.innerHTML = `
         <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs flex items-center justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-12 h-16 rounded-lg overflow-hidden border border-amber-900/15 shrink-0 bg-amber-100/60 flex items-center justify-center">
+            <button
+              type="button"
+              data-zoom-book-cover="${escapeHtml(book.id)}"
+              title="책 표지 확대 보기"
+              aria-label="${escapeHtml(book.title)} 표지 확대 보기"
+              class="w-12 h-16 rounded-lg overflow-hidden border border-amber-900/15 shrink-0 bg-amber-100/60 flex items-center justify-center hover:ring-2 hover:ring-accent/50 active:scale-95 transition cursor-pointer"
+            >
               ${
                 book.coverImage
                   ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(
@@ -1387,11 +1447,11 @@
                     )}" class="w-full h-full object-cover" />`
                   : `<span class="text-xl">📘</span>`
               }
-            </div>
+            </button>
             <div class="min-w-0">
               <p class="text-[11px] font-bold text-accent">${escapeHtml(owner.name)}의 책장</p>
-              <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(book.title)}</h2>
-              <p class="text-xs text-muted truncate">${escapeHtml(
+              <h2 class="font-serif text-base font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
+              <p class="text-xs text-muted leading-snug break-words">${escapeHtml(
                 book.author || '지은이 미상'
               )} · 구절 ${bookEntries.length}개</p>
             </div>
@@ -2405,6 +2465,12 @@
 
         if (dropdown && !dropdown.classList.contains('hidden') && !e.target.closest('#activeUserDropdown')) {
           dropdown.classList.add('hidden');
+        }
+
+        const zoomCoverBtn = e.target.closest('[data-zoom-book-cover]');
+        if (zoomCoverBtn) {
+          openBookCoverZoomModal(zoomCoverBtn.getAttribute('data-zoom-book-cover'));
+          return;
         }
 
         const addBookBtn = e.target.closest('[data-open-add-book]');
