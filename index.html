@@ -406,6 +406,7 @@
         localStorage.setItem('readingmemo_last_seen_at', String(now));
       } catch (e) {}
       writeCookieValue('readingmemo_last_seen_at', String(now), 365);
+      savePrefToIdb('readingmemo_last_seen_at', now);
       updateNewsBadgeUI();
     }
 
@@ -600,6 +601,7 @@
       try {
         const savedUserId = await loadPrefFromIdb('readingmemo_active_user_id');
         const savedLocked = await loadPrefFromIdb('readingmemo_user_locked');
+        const savedLastSeen = Number(await loadPrefFromIdb('readingmemo_last_seen_at') || '0');
 
         if (!state.activeUserId && savedUserId) {
           state.activeUserId = savedUserId;
@@ -607,9 +609,17 @@
         if (savedLocked === 'true' || savedLocked === 'false') {
           state.isUserLocked = savedLocked === 'true';
         }
+        if (savedLastSeen > state.lastSeenAt) {
+          state.lastSeenAt = savedLastSeen;
+          try {
+            localStorage.setItem('readingmemo_last_seen_at', String(savedLastSeen));
+          } catch (e) {}
+          writeCookieValue('readingmemo_last_seen_at', String(savedLastSeen), 365);
+        }
         if (state.activeUserId) {
           setFixedActiveUser(state.activeUserId, state.isUserLocked);
         }
+        updateNewsBadgeUI();
       } catch (e) {
         console.error('IndexedDB 설정 복원 오류:', e);
       }
@@ -1253,9 +1263,11 @@
       missedCatchupDone = true;
 
       const unread = getUnreadActivityCount();
-      if (unread > 0) {
-        showToast(`🔔 부재중 새소식 ${unread}건이 있어요! 상단 [새소식]을 눌러 확인해보세요.`);
+      if (unread <= 0) {
+        updateNewsBadgeUI();
+        return;
       }
+      showToast(`🔔 부재중 새소식 ${unread}건이 있어요! 상단 [새소식]을 눌러 확인해보세요.`);
     }
 
     async function forceSyncLatestRemoteData() {
