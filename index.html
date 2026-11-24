@@ -1181,24 +1181,12 @@
                   <button
                     type="button"
                     data-open-book="${escapeHtml(book.id)}"
-                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 transition text-left block bg-surface cursor-pointer"
+                    data-longpress-book-id="${escapeHtml(book.id)}"
+                    data-longpress-can-delete="${isMyShelf ? '1' : '0'}"
+                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 transition text-left block bg-surface cursor-pointer select-none"
                   >
                     ${coverVisual}
                   </button>
-                  ${
-                    isMyShelf
-                      ? `
-                    <button
-                      type="button"
-                      data-delete-book="${escapeHtml(book.id)}"
-                      aria-label="${escapeHtml(book.title)} 삭제"
-                      class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-amber-900/20 text-muted hover:text-red-600 text-xs font-bold flex items-center justify-center shadow-xs cursor-pointer"
-                    >
-                      ×
-                    </button>
-                  `
-                      : ''
-                  }
                   <p class="mt-1.5 text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
                   <p class="text-[11px] text-muted truncate">구절 ${entryCount}개</p>
                 </div>
@@ -2307,6 +2295,56 @@
     }
 
     function bindGlobalEvents() {
+      let longPressTimer = null;
+      let longPressTriggered = false;
+      let pressStartX = 0;
+      let pressStartY = 0;
+
+      function clearBookLongPress() {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+
+      document.addEventListener('pointerdown', (e) => {
+        const bookBtn = e.target.closest('[data-longpress-book-id]');
+        clearBookLongPress();
+        longPressTriggered = false;
+
+        if (!bookBtn) return;
+        const canDelete = bookBtn.getAttribute('data-longpress-can-delete') === '1';
+        const bookId = bookBtn.getAttribute('data-longpress-book-id');
+        if (!canDelete || !bookId) return;
+
+        pressStartX = e.clientX;
+        pressStartY = e.clientY;
+
+        longPressTimer = setTimeout(() => {
+          longPressTriggered = true;
+          longPressTimer = null;
+          openDeleteBookModal(bookId);
+        }, 550);
+      });
+
+      document.addEventListener('pointermove', (e) => {
+        if (!longPressTimer) return;
+        const dx = Math.abs(e.clientX - pressStartX);
+        const dy = Math.abs(e.clientY - pressStartY);
+        if (dx > 10 || dy > 10) {
+          clearBookLongPress();
+        }
+      });
+
+      document.addEventListener('pointerup', () => {
+        clearBookLongPress();
+      });
+
+      document.addEventListener('pointercancel', () => {
+        clearBookLongPress();
+        longPressTriggered = false;
+      });
+
       document.getElementById('navHomeBtn').addEventListener('click', () => {
         state.currentTab = 'home';
         state.selectedBookId = null;
@@ -2379,6 +2417,10 @@
 
         const openBookBtn = e.target.closest('[data-open-book]');
         if (openBookBtn) {
+          if (longPressTriggered) {
+            longPressTriggered = false;
+            return;
+          }
           state.selectedBookId = openBookBtn.getAttribute('data-open-book');
           renderApp();
           return;
