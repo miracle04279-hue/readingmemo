@@ -254,6 +254,23 @@
     function getPersistedUserConfig() {
       const params = new URLSearchParams(window.location.search);
       const urlUserId = params.get('user') || '';
+
+      let hashUserId = '';
+      try {
+        const hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+        hashUserId = hashParams.get('user') || '';
+      } catch (e) {}
+
+      let winNameUserId = '';
+      let winNameLocked = '';
+      try {
+        if (window.name && window.name.startsWith('READINGMEMO_USER:')) {
+          const parsed = JSON.parse(window.name.slice('READINGMEMO_USER:'.length));
+          winNameUserId = parsed.userId || '';
+          winNameLocked = typeof parsed.isLocked === 'boolean' ? String(parsed.isLocked) : '';
+        }
+      } catch (e) {}
+
       let lsUserId = '';
       let lsLocked = '';
       try {
@@ -263,8 +280,9 @@
       const cookieUserId = readCookieValue('readingmemo_active_user_id');
       const cookieLocked = readCookieValue('readingmemo_user_locked');
 
-      const resolvedUserId = urlUserId || lsUserId || cookieUserId || '';
-      const resolvedLockedStr = lsLocked || cookieLocked;
+      const resolvedUserId =
+        urlUserId || hashUserId || lsUserId || cookieUserId || winNameUserId || '';
+      const resolvedLockedStr = lsLocked || cookieLocked || winNameLocked;
       return {
         userId: resolvedUserId,
         isLocked: resolvedUserId ? resolvedLockedStr !== 'false' : false,
@@ -289,11 +307,13 @@
 
     let initialBooksLoaded = false;
     let initialEntriesLoaded = false;
+    let usersSnapshotInitialized = false;
     const knownBookIds = new Set();
     const knownEntryIds = new Set();
     const knownReplyIds = new Set();
 
     function setFixedActiveUser(userId, lock = true) {
+      if (!userId) return;
       state.activeUserId = userId;
       state.isUserLocked = lock;
       try {
@@ -304,8 +324,13 @@
       writeCookieValue('readingmemo_user_locked', String(lock), 365);
 
       try {
+        window.name = `READINGMEMO_USER:${JSON.stringify({ userId, isLocked: lock })}`;
+      } catch (e) {}
+
+      try {
         const url = new URL(window.location.href);
         url.searchParams.set('user', userId);
+        url.hash = `user=${encodeURIComponent(userId)}`;
         window.history.replaceState({}, '', url.toString());
       } catch (e) {}
     }
@@ -657,9 +682,18 @@
           });
           loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
           state.users = loadedUsers;
-          if (!state.users.some((u) => u.id === state.activeUserId) && state.users[0]) {
-            setFixedActiveUser(state.users[0].id, state.isUserLocked);
+
+          const latestPersisted = getPersistedUserConfig();
+          if (latestPersisted.userId && loadedUsers.some((u) => u.id === latestPersisted.userId)) {
+            setFixedActiveUser(latestPersisted.userId, latestPersisted.isLocked);
+          } else if (!loadedUsers.some((u) => u.id === state.activeUserId) && loadedUsers[0]) {
+            if (usersSnapshotInitialized) {
+              setFixedActiveUser(loadedUsers[0].id, state.isUserLocked);
+            } else {
+              state.activeUserId = loadedUsers[0].id;
+            }
           }
+          usersSnapshotInitialized = true;
           renderApp();
         },
         (error) => {
