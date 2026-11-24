@@ -795,7 +795,7 @@
     function applyBooksSnapshotDocs(docsList) {
       const loadedBooks = docsList.map((item) => ({ ...item }));
       loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      state.books = loadedBooks;
+      state.books = [...loadedBooks];
 
       if (!initialBooksLoaded) {
         initialBooksLoaded = true;
@@ -824,7 +824,7 @@
       }));
       // 먼저 찍은 구절이 위, 나중에 찍은 구절이 아래로 오도록 오름차순 정렬
       loadedEntries.sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
-      state.entries = loadedEntries;
+      state.entries = [...loadedEntries];
 
       if (!initialEntriesLoaded) {
         initialEntriesLoaded = true;
@@ -870,7 +870,7 @@
     }
 
     async function forceSyncLatestRemoteData() {
-      if (!db || !currentAuthUser || isRefreshingRemoteData) return;
+      if (!db || !currentAuthUser) return;
       isRefreshingRemoteData = true;
       try {
         try {
@@ -902,6 +902,8 @@
           notifyMissedActivity(missedMessages);
         }
         updateNewsBadgeUI();
+        const mainContent = document.getElementById('mainContent');
+        if (mainContent) mainContent.innerHTML = '';
         renderApp();
       } catch (err) {
         console.error('복귀 시 최신 데이터 동기화 오류:', err);
