@@ -241,15 +241,44 @@
       { id: 'user-ttungi', name: '뚱이', paletteIndex: 2, createdAt: 3 },
     ];
 
-    const savedActiveUserId = localStorage.getItem('readingmemo_active_user_id');
-    const savedUserLocked = localStorage.getItem('readingmemo_user_locked');
+    function readCookieValue(name) {
+      const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    function writeCookieValue(name, value, days = 365) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+    }
+
+    function getPersistedUserConfig() {
+      const params = new URLSearchParams(window.location.search);
+      const urlUserId = params.get('user') || '';
+      let lsUserId = '';
+      let lsLocked = '';
+      try {
+        lsUserId = localStorage.getItem('readingmemo_active_user_id') || '';
+        lsLocked = localStorage.getItem('readingmemo_user_locked') || '';
+      } catch (e) {}
+      const cookieUserId = readCookieValue('readingmemo_active_user_id');
+      const cookieLocked = readCookieValue('readingmemo_user_locked');
+
+      const resolvedUserId = urlUserId || lsUserId || cookieUserId || '';
+      const resolvedLockedStr = lsLocked || cookieLocked;
+      return {
+        userId: resolvedUserId,
+        isLocked: resolvedUserId ? resolvedLockedStr !== 'false' : false,
+      };
+    }
+
+    const persistedUser = getPersistedUserConfig();
 
     const state = {
       currentTab: 'home',
       selectedBookId: null,
       viewMode: 'home',
-      activeUserId: savedActiveUserId || 'user-kkyukkyu',
-      isUserLocked: savedActiveUserId ? savedUserLocked !== 'false' : false,
+      activeUserId: persistedUser.userId || 'user-kkyukkyu',
+      isUserLocked: persistedUser.isLocked,
       cloudConnected: false,
       soundAlertEnabled: localStorage.getItem('readingmemo_sound_alert') !== 'false',
       browserNotifyEnabled: localStorage.getItem('readingmemo_browser_notify') === 'true',
@@ -267,8 +296,23 @@
     function setFixedActiveUser(userId, lock = true) {
       state.activeUserId = userId;
       state.isUserLocked = lock;
-      localStorage.setItem('readingmemo_active_user_id', userId);
-      localStorage.setItem('readingmemo_user_locked', String(lock));
+      try {
+        localStorage.setItem('readingmemo_active_user_id', userId);
+        localStorage.setItem('readingmemo_user_locked', String(lock));
+      } catch (e) {}
+      writeCookieValue('readingmemo_active_user_id', userId, 365);
+      writeCookieValue('readingmemo_user_locked', String(lock), 365);
+
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('user', userId);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
+    }
+
+    // 앱 재실행 시에도 고정 상태가 유지되도록 초기 복원값 동기화
+    if (persistedUser.userId) {
+      setFixedActiveUser(persistedUser.userId, persistedUser.isLocked);
     }
 
     /**
@@ -399,7 +443,9 @@
     }
 
     function handleShareAppLink() {
-      const shareUrl = window.location.href;
+      const shareUrlObj = new URL(window.location.href);
+      shareUrlObj.searchParams.delete('user');
+      const shareUrl = shareUrlObj.toString();
       if (navigator.share) {
         navigator
           .share({
@@ -2000,7 +2046,10 @@
         const unlockBtn = e.target.closest('#unlockActiveUserBtn');
         if (unlockBtn) {
           state.isUserLocked = false;
-          localStorage.setItem('readingmemo_user_locked', 'false');
+          try {
+            localStorage.setItem('readingmemo_user_locked', 'false');
+          } catch (err) {}
+          writeCookieValue('readingmemo_user_locked', 'false', 365);
           renderActiveUserBadge();
           dropdown?.classList.remove('hidden');
           showToast('사용자 잠금이 해제되었습니다. 고정할 사용자를 선택해주세요.');
