@@ -152,7 +152,8 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import {
-      getFirestore,
+      initializeFirestore,
+      memoryLocalCache,
       doc,
       setDoc,
       updateDoc,
@@ -191,7 +192,9 @@
     if (isFirebaseConfigured) {
       try {
         const fbApp = initializeApp(firebaseConfig);
-        db = getFirestore(fbApp);
+        db = initializeFirestore(fbApp, {
+          localCache: memoryLocalCache(),
+        });
         auth = getAuth(fbApp);
       } catch (err) {
         console.error("Firebase 초기화 오류:", err);
@@ -361,14 +364,40 @@
       entries: [],
     };
 
-    let initialBooksLoaded = false;
-    let initialEntriesLoaded = false;
-    let missedCatchupDone = false;
-    let isRefreshingRemoteData = false;
-    let lastResumeSyncAt = 0;
-    const knownBookIds = new Set();
-    const knownEntryIds = new Set();
-    const knownReplyIds = new Set();
+    function setFixedActiveUser(userId, locked = true) {
+      if (!userId) return;
+      state.activeUserId = userId;
+      state.isUserLocked = Boolean(locked);
+
+      try {
+        localStorage.setItem('readingmemo_active_user_id', state.activeUserId);
+        localStorage.setItem('readingmemo_user_locked', String(state.isUserLocked));
+      } catch (e) {}
+
+      writeCookieValue('readingmemo_active_user_id', state.activeUserId, 365);
+      writeCookieValue('readingmemo_user_locked', String(state.isUserLocked), 365);
+
+      try {
+        window.name = `READINGMEMO_USER:${JSON.stringify({
+          userId: state.activeUserId,
+          isLocked: state.isUserLocked,
+        })}`;
+      } catch (e) {}
+
+      savePrefToIdb('readingmemo_active_user_id', state.activeUserId);
+      savePrefToIdb('readingmemo_user_locked', String(state.isUserLocked));
+    }
+
+    function getCleanShareUrl() {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('user');
+        url.hash = '';
+        return url.toString();
+      } catch (e) {
+        return window.location.href.split('#')[0];
+      }
+    }
 
     function markLastSeenNow() {
       const now = Date.now();
@@ -380,44 +409,159 @@
       updateNewsBadgeUI();
     }
 
-    function setFixedActiveUser(userId, lock = true) {
-      if (!userId) return;
-      state.activeUserId = userId;
-      state.isUserLocked = Boolean(lock);
+    let initialBooksLoaded = false;
+    let initialEntriesLoaded = false;
+    let missedCatchupDone = false;
+    let isRefreshingRemoteData = false;
+    let lastResumeSyncAt = 0;
+    let syncAuthReadyPromise = null;
+    let realtimeSyncInitialized = false;
+    let isSettingUpListeners = false;
+    let unsubscribeUsersListener = null;
+    let unsubscribeBooksListener = null;
+    let unsubscribeEntriesListener = null;
+    let resubscribeTimer = null;
+    const knownBookIds = new Set();
+    const knownEntryIds = new Set();
+    const knownReplyIds = new Set();
 
-      try {
-        localStorage.setItem('readingmemo_active_user_id', userId);
-        localStorage.setItem('readingmemo_user_locked', String(state.isUserLocked));
-      } catch (e) {}
-
-      writeCookieValue('readingmemo_active_user_id', userId, 365);
-      writeCookieValue('readingmemo_user_locked', String(state.isUserLocked), 365);
-
-      try {
-        window.name = `READINGMEMO_USER:${JSON.stringify({
-          userId,
-          isLocked: state.isUserLocked,
-        })}`;
-      } catch (e) {}
-
-      savePrefToIdb('readingmemo_active_user_id', userId);
-      savePrefToIdb('readingmemo_user_locked', String(state.isUserLocked));
-
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('user', userId);
-        window.history.replaceState({}, '', url.toString());
-      } catch (e) {}
+    function cleanupRealtimeListeners() {
+      if (resubscribeTimer !== null) {
+        clearTimeout(resubscribeTimer);
+        resubscribeTimer = null;
+      }
+      if (typeof unsubscribeUsersListener === 'function') {
+        try {
+          unsubscribeUsersListener();
+        } catch (e) {}
+        unsubscribeUsersListener = null;
+      }
+      if (typeof unsubscribeBooksListener === 'function') {
+        try {
+          unsubscribeBooksListener();
+        } catch (e) {}
+        unsubscribeBooksListener = null;
+      }
+      if (typeof unsubscribeEntriesListener === 'function') {
+        try {
+          unsubscribeEntriesListener();
+        } catch (e) {}
+        unsubscribeEntriesListener = null;
+      }
+      realtimeSyncInitialized = false;
     }
 
-    function getCleanShareUrl() {
+    function scheduleSafeResubscribe() {
+      if (isSettingUpListeners || resubscribeTimer !== null) return;
+      cleanupRealtimeListeners();
+      resubscribeTimer = setTimeout(() => {
+        resubscribeTimer = null;
+        initRealtimeSync();
+      }, 800);
+    }
+
+    async function initRealtimeSync() {
+      if (!db || !auth) return;
+      if (realtimeSyncInitialized || isSettingUpListeners) return;
+
+      if (!syncAuthReadyPromise) {
+        syncAuthReadyPromise = (async () => {
+          try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              const cred = await signInWithCustomToken(auth, __initial_auth_token);
+              currentAuthUser = cred.user;
+            } else {
+              const cred = await signInAnonymously(auth);
+              currentAuthUser = cred.user;
+            }
+          } catch (err) {
+            console.error('Firebase 인증 오류:', err);
+          }
+        })();
+      }
+      await syncAuthReadyPromise;
+
+      if (!currentAuthUser) return;
+      if (realtimeSyncInitialized || isSettingUpListeners) return;
+      isSettingUpListeners = true;
+
       try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('user');
-        url.hash = '';
-        return url.toString();
-      } catch (e) {
-        return window.location.href.split('?')[0].split('#')[0];
+        cleanupRealtimeListeners();
+
+        const usersColRef = getPublicCollection('users');
+        const booksColRef = getPublicCollection('books');
+        const entriesColRef = getPublicCollection('entries');
+
+        unsubscribeUsersListener = onSnapshot(
+          usersColRef,
+          async (snapshot) => {
+            if (snapshot.empty) {
+              for (const defaultUser of DEFAULT_USERS) {
+                await syncSaveUser(defaultUser);
+              }
+              return;
+            }
+            const loadedUsers = [];
+            snapshot.forEach((docSnap) => {
+              loadedUsers.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            state.users = loadedUsers;
+            if (!state.users.some((u) => u.id === state.activeUserId) && state.users[0]) {
+              setFixedActiveUser(state.users[0].id, state.isUserLocked);
+            }
+            renderApp();
+          },
+          (error) => {
+            console.warn('users 구독 일시 지연:', error?.message || error);
+            if (String(error?.message || '').includes('Target ID already exists')) {
+              scheduleSafeResubscribe();
+            }
+          }
+        );
+
+        unsubscribeBooksListener = onSnapshot(
+          booksColRef,
+          (snapshot) => {
+            const docsList = [];
+            snapshot.forEach((docSnap) => {
+              docsList.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            initialBooksLoaded = true;
+            applyBooksSnapshotDocs(docsList);
+            checkMissedActivitySinceLastVisit();
+          },
+          (error) => {
+            console.warn('books 구독 일시 지연:', error?.message || error);
+            if (String(error?.message || '').includes('Target ID already exists')) {
+              scheduleSafeResubscribe();
+            }
+          }
+        );
+
+        unsubscribeEntriesListener = onSnapshot(
+          entriesColRef,
+          (snapshot) => {
+            const docsList = [];
+            snapshot.forEach((docSnap) => {
+              docsList.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            initialEntriesLoaded = true;
+            applyEntriesSnapshotDocs(docsList);
+            checkMissedActivitySinceLastVisit();
+          },
+          (error) => {
+            console.warn('entries 구독 일시 지연:', error?.message || error);
+            if (String(error?.message || '').includes('Target ID already exists')) {
+              scheduleSafeResubscribe();
+            }
+          }
+        );
+
+        realtimeSyncInitialized = true;
+        state.cloudConnected = true;
+      } finally {
+        isSettingUpListeners = false;
       }
     }
 
@@ -1012,12 +1156,17 @@
     }
 
     function applyBooksSnapshotDocs(docsList) {
-      const loadedBooks = docsList.map((item) => ({ ...item }));
+      const loadedBooks = docsList.map((item) => ({
+        ...item,
+        createdAt: Number(item.createdAt) || Date.now(),
+      }));
       loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
       if (!initialBooksLoaded) {
         loadedBooks.forEach((b) => knownBookIds.add(b.id));
-        initialBooksLoaded = true;
+        if (loadedBooks.length > 0) {
+          initialBooksLoaded = true;
+        }
       } else {
         for (const book of loadedBooks) {
           if (!knownBookIds.has(book.id)) {
@@ -1033,7 +1182,9 @@
         }
       }
 
-      state.books = [...loadedBooks];
+      if (loadedBooks.length > 0 || initialBooksLoaded) {
+        state.books = [...loadedBooks];
+      }
       updateNewsBadgeUI();
       renderApp();
     }
@@ -1041,6 +1192,7 @@
     function applyEntriesSnapshotDocs(docsList) {
       const loadedEntries = docsList.map((item) => ({
         ...item,
+        createdAt: getEntrySortTimestamp(item) || Date.now(),
         replies: Array.isArray(item.replies) ? [...item.replies] : [],
       }));
       loadedEntries.sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
@@ -1052,7 +1204,9 @@
             knownReplyIds.add(`${e.id}:${r.id || idx}`);
           });
         });
-        initialEntriesLoaded = true;
+        if (loadedEntries.length > 0) {
+          initialEntriesLoaded = true;
+        }
       } else {
         for (const entry of loadedEntries) {
           const book = state.books.find((b) => b.id === entry.bookId);
@@ -1086,14 +1240,16 @@
         }
       }
 
-      state.entries = [...loadedEntries];
+      if (loadedEntries.length > 0 || initialEntriesLoaded) {
+        state.entries = [...loadedEntries];
+      }
       updateNewsBadgeUI();
       renderApp();
     }
 
     function checkMissedActivitySinceLastVisit() {
       if (missedCatchupDone) return;
-      if (!initialBooksLoaded || !initialEntriesLoaded) return;
+      if (!initialBooksLoaded && !initialEntriesLoaded) return;
       missedCatchupDone = true;
 
       const unread = getUnreadActivityCount();
@@ -1103,16 +1259,23 @@
     }
 
     async function forceSyncLatestRemoteData() {
-      if (!db || !currentAuthUser) {
+      if (!db) {
+        renderApp();
+        return;
+      }
+      if (syncAuthReadyPromise) {
+        await syncAuthReadyPromise;
+      }
+      if (!currentAuthUser) {
         renderApp();
         return;
       }
       if (isRefreshingRemoteData) return;
       isRefreshingRemoteData = true;
       try {
-        try {
-          await enableNetwork(db);
-        } catch (netErr) {}
+        if (!realtimeSyncInitialized && !isSettingUpListeners) {
+          await initRealtimeSync();
+        }
 
         const [usersSnap, booksSnap, entriesSnap] = await Promise.all([
           getDocs(getPublicCollection('users')),
@@ -1133,100 +1296,23 @@
         booksSnap.forEach((docSnap) => {
           loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
         });
+        initialBooksLoaded = true;
         applyBooksSnapshotDocs(loadedBooks);
 
         const loadedEntries = [];
         entriesSnap.forEach((docSnap) => {
           loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
         });
+        initialEntriesLoaded = true;
         applyEntriesSnapshotDocs(loadedEntries);
 
-        const mainEl = document.getElementById('mainContent');
-        if (mainEl) {
-          mainEl.innerHTML = '';
-        }
         renderApp();
       } catch (err) {
-        console.warn('복귀 시 최신 데이터 동기화 오류:', err);
+        console.warn('복귀 시 최신 데이터 동기화 지연:', err?.message || err);
         renderApp();
       } finally {
         isRefreshingRemoteData = false;
       }
-    }
-
-    async function initRealtimeSync() {
-      if (!db || !auth) return;
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          const cred = await signInWithCustomToken(auth, __initial_auth_token);
-          currentAuthUser = cred.user;
-        } else {
-          const cred = await signInAnonymously(auth);
-          currentAuthUser = cred.user;
-        }
-      } catch (err) {
-        console.error('Firebase 인증 오류:', err);
-        showToast('실시간 연동 인증에 실패했습니다. 설정을 확인해주세요.');
-        return;
-      }
-
-      if (!currentAuthUser) return;
-      state.cloudConnected = true;
-
-      onSnapshot(
-        getPublicCollection('users'),
-        async (snapshot) => {
-          if (snapshot.empty) {
-            for (const defaultUser of DEFAULT_USERS) {
-              await syncSaveUser(defaultUser);
-            }
-            return;
-          }
-          const loadedUsers = [];
-          snapshot.forEach((docSnap) => {
-            loadedUsers.push({ id: docSnap.id, ...docSnap.data() });
-          });
-          loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-          state.users = loadedUsers;
-          if (!state.users.some((u) => u.id === state.activeUserId) && state.users[0]) {
-            setFixedActiveUser(state.users[0].id, state.isUserLocked);
-          }
-          renderApp();
-        },
-        (error) => {
-          console.error('users 구독 오류:', error);
-        }
-      );
-
-      onSnapshot(
-        getPublicCollection('books'),
-        (snapshot) => {
-          const docsList = [];
-          snapshot.forEach((docSnap) => {
-            docsList.push({ id: docSnap.id, ...docSnap.data() });
-          });
-          applyBooksSnapshotDocs(docsList);
-          checkMissedActivitySinceLastVisit();
-        },
-        (error) => {
-          console.error('books 구독 오류:', error);
-        }
-      );
-
-      onSnapshot(
-        getPublicCollection('entries'),
-        (snapshot) => {
-          const docsList = [];
-          snapshot.forEach((docSnap) => {
-            docsList.push({ id: docSnap.id, ...docSnap.data() });
-          });
-          applyEntriesSnapshotDocs(docsList);
-          checkMissedActivitySinceLastVisit();
-        },
-        (error) => {
-          console.error('entries 구독 오류:', error);
-        }
-      );
     }
 
     function renderActiveUserBadge() {
