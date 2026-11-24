@@ -1081,8 +1081,8 @@
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: 'environment' },
-              width: { ideal: 2560, min: 1280 },
-              height: { ideal: 1920, min: 720 },
+              width: { ideal: 4096, min: 1920 },
+              height: { ideal: 3072, min: 1080 },
             },
             audio: false,
           });
@@ -1123,8 +1123,8 @@
                 rawUrl = '';
               }
               if (!rawUrl) {
-                const w = videoEl.videoWidth || 1920;
-                const h = videoEl.videoHeight || 1080;
+                const w = videoEl.videoWidth || 2560;
+                const h = videoEl.videoHeight || 1920;
                 const snapCanvas = document.createElement('canvas');
                 snapCanvas.width = w;
                 snapCanvas.height = h;
@@ -1132,9 +1132,9 @@
                 sctx.imageSmoothingEnabled = true;
                 sctx.imageSmoothingQuality = 'high';
                 sctx.drawImage(videoEl, 0, 0, w, h);
-                rawUrl = snapCanvas.toDataURL('image/jpeg', 0.94);
+                rawUrl = snapCanvas.toDataURL('image/jpeg', 0.96);
               }
-              const compressedUrl = await compressImageDataUrl(rawUrl, 1280, 0.86);
+              const compressedUrl = await compressImageDataUrl(rawUrl, 2048, 0.92);
               stopStream();
               onCapturedDataUrl(compressedUrl);
             };
@@ -1152,7 +1152,7 @@
       return { startStream, stopStream };
     }
 
-    function compressImageDataUrl(rawDataUrl, maxDimension = 1280, quality = 0.86) {
+    function compressImageDataUrl(rawDataUrl, maxDimension = 2048, quality = 0.92) {
       return new Promise((resolve) => {
         if (!rawDataUrl || !rawDataUrl.startsWith('data:image/')) {
           resolve(rawDataUrl);
@@ -1160,8 +1160,8 @@
         }
         const img = new Image();
         img.onload = () => {
-          const w = img.naturalWidth || 1280;
-          const h = img.naturalHeight || 1280;
+          const w = img.naturalWidth || 2048;
+          const h = img.naturalHeight || 2048;
           const scale = Math.max(w, h) > maxDimension ? maxDimension / Math.max(w, h) : 1;
           const targetW = Math.max(1, Math.round(w * scale));
           const targetH = Math.max(1, Math.round(h * scale));
@@ -1188,7 +1188,7 @@
         const reader = new FileReader();
         reader.onload = async () => {
           const raw = String(reader.result || '');
-          const compressed = await compressImageDataUrl(raw, 1280, 0.86);
+          const compressed = await compressImageDataUrl(raw, 2048, 0.92);
           resolve(compressed);
         };
         reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
@@ -2186,7 +2186,7 @@
                         data-edit-cover="${escapeHtml(book.id)}"
                         class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-3 py-2 transition cursor-pointer"
                       >
-                        표지 수정
+                        책 정보 수정
                       </button>
                     `
                     : `
@@ -2688,7 +2688,7 @@
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
       if (!canManageBook(book)) {
-        showToast('본인 책장의 책 표지만 수정할 수 있습니다.');
+        showToast('본인 책장의 책 정보만 수정할 수 있습니다.');
         return;
       }
 
@@ -2698,40 +2698,71 @@
         <div class="flex items-center justify-between">
           <div>
             <span class="text-xs font-semibold text-accent">${escapeHtml(book.title)}</span>
-            <h3 class="font-serif text-lg font-bold text-ink">책 표지 수정</h3>
+            <h3 class="font-serif text-lg font-bold text-ink">책 정보 수정</h3>
           </div>
           <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center cursor-pointer">×</button>
         </div>
 
         <form id="editBookCoverForm" class="space-y-3.5">
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              data-start-camera
-              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
-            >
-              📷 카메라로 찍기
-            </button>
-            <button
-              type="button"
-              data-pick-file
-              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
-            >
-              🖼️ 사진 선택
-            </button>
-            <input type="file" accept="image/*" data-file-input class="hidden" />
+          <div>
+            <label class="block text-xs font-bold text-ink mb-1">책 제목 *</label>
+            <input
+              type="text"
+              name="title"
+              required
+              value="${escapeHtml(book.title || '')}"
+              placeholder="예: 어린 왕자"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
+            />
           </div>
 
-          <div data-camera-box class="hidden space-y-2 rounded-2xl border border-amber-900/20 bg-black p-2.5">
-            <video data-camera-video autoplay playsinline class="w-full rounded-xl max-h-56 object-cover"></video>
+          <div>
+            <label class="block text-xs font-bold text-ink mb-1">지은이</label>
+            <input
+              type="text"
+              name="author"
+              value="${escapeHtml(book.author || '')}"
+              placeholder="예: 생텍쥐페리"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-xs font-bold text-ink">책 표지 사진</label>
             <div class="flex items-center gap-2">
-              <button type="button" data-capture-photo-btn class="flex-1 rounded-xl bg-accent text-white text-xs font-bold py-2 cursor-pointer">촬영하기</button>
-              <button type="button" data-stop-camera-btn class="rounded-xl bg-white/20 text-white text-xs font-semibold px-3 py-2 cursor-pointer">닫기</button>
+              <button
+                type="button"
+                data-start-camera
+                class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              >
+                📷 카메라로 찍기
+              </button>
+              <button
+                type="button"
+                data-pick-file
+                class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              >
+                🖼️ 사진 선택
+              </button>
+              <input type="file" accept="image/*" data-file-input class="hidden" />
             </div>
-          </div>
 
-          <div data-cover-preview class="${tempCoverUrl ? '' : 'hidden'} rounded-2xl overflow-hidden border border-amber-900/15 bg-paper p-2">
-            <img data-cover-preview-img src="${escapeHtml(tempCoverUrl)}" alt="표지 미리보기" class="w-28 h-36 object-cover rounded-xl mx-auto" />
+            <div data-camera-box class="hidden space-y-2 rounded-2xl border border-amber-900/20 bg-black p-2.5">
+              <video data-camera-video autoplay playsinline class="w-full rounded-xl max-h-56 object-cover"></video>
+              <div class="flex items-center gap-2">
+                <button type="button" data-capture-photo-btn class="flex-1 rounded-xl bg-accent text-white text-xs font-bold py-2 cursor-pointer">촬영하기</button>
+                <button type="button" data-stop-camera-btn class="rounded-xl bg-white/20 text-white text-xs font-semibold px-3 py-2 cursor-pointer">닫기</button>
+              </div>
+            </div>
+
+            <div data-cover-preview class="${tempCoverUrl ? '' : 'hidden'} rounded-2xl overflow-hidden border border-amber-900/15 bg-paper p-2 space-y-2">
+              <img data-cover-preview-img src="${escapeHtml(tempCoverUrl)}" alt="표지 미리보기" class="w-28 h-36 object-cover rounded-xl mx-auto" />
+              <div class="flex justify-center">
+                <button type="button" data-crop-cover-btn class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold px-3 py-1.5 cursor-pointer">
+                  ✂️ 표지 오리기
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-2">
@@ -2754,6 +2785,19 @@
         }
       };
 
+      const openCoverCropStep = (rawUrl) => {
+        if (!rawUrl) return;
+        openImageCropperOverlay(
+          rawUrl,
+          (croppedUrl) => applyCoverPreview(croppedUrl),
+          {
+            title: '책 표지 오리기',
+            helperText: '책 표지 영역만 원하는 비율로 자유롭게 오려내세요.',
+            maxDimension: 640,
+          }
+        );
+      };
+
       modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
         btn.addEventListener('click', () => {
           camHelper.stopStream();
@@ -2761,8 +2805,13 @@
         });
       });
 
+      modalCard.querySelector('[data-crop-cover-btn]')?.addEventListener('click', () => {
+        if (!tempCoverUrl) return;
+        openCoverCropStep(tempCoverUrl);
+      });
+
       modalCard.querySelector('[data-start-camera]')?.addEventListener('click', () => {
-        camHelper.startStream(applyCoverPreview);
+        camHelper.startStream(openCoverCropStep);
       });
 
       const fileInput = modalCard.querySelector('[data-file-input]');
@@ -2774,23 +2823,33 @@
         if (!file) return;
         try {
           const dataUrl = await readFileAsDataUrl(file);
-          applyCoverPreview(dataUrl);
+          openCoverCropStep(dataUrl);
         } catch (err) {
           showToast(err.message || '이미지를 불러오지 못했습니다.');
         }
+        e.target.value = '';
       });
 
       document.getElementById('editBookCoverForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
+        const formData = new FormData(e.target);
+        const nextTitle = String(formData.get('title') || '').trim();
+        const nextAuthor = String(formData.get('author') || '').trim();
+        if (!nextTitle) {
+          showToast('책 제목을 입력해주세요.');
+          return;
+        }
         const compressedCover = tempCoverUrl
           ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
           : '';
+        book.title = nextTitle;
+        book.author = nextAuthor;
         book.coverImage = compressedCover;
         closeModal();
         renderApp();
         await syncSaveBook(book);
-        showToast('책 표지가 수정되었습니다.');
+        showToast('책 정보가 수정되었습니다.');
       });
     }
 
@@ -3026,17 +3085,28 @@
       const moveStroke = (clientX, clientY) => {
         if (!isDrawing || !hasBaseImageLoaded || isPinching) return;
         const pt = getCanvasCoords(clientX, clientY);
+        const dx = pt.x - lastX;
+        const dy = pt.y - lastY;
+        const dist = Math.hypot(dx, dy);
+        const lineWidth = Math.max(14, canvas.width * 0.028);
+        const step = Math.max(1.5, lineWidth * 0.14);
+        const steps = Math.max(1, Math.ceil(dist / step));
+
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
-        ctx.strokeStyle = selectedColor;
-        ctx.lineWidth = Math.max(14, canvas.width * 0.028);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(pt.x, pt.y);
-        ctx.stroke();
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = selectedColor;
+
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const sx = lastX + dx * t;
+          const sy = lastY + dy * t;
+          ctx.beginPath();
+          ctx.arc(sx, sy, lineWidth / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
+
         lastX = pt.x;
         lastY = pt.y;
       };
@@ -3182,7 +3252,7 @@
           {
             title: '구절 사진 오리기',
             helperText: '형광펜을 칠할 구절 영역만 원하는 만큼 오려내세요.',
-            maxDimension: 1280,
+            maxDimension: 2048,
           }
         );
       };
@@ -3251,9 +3321,9 @@
         }
 
         const rawFinalUrl = hasBaseImageLoaded
-          ? canvas.toDataURL('image/jpeg', 0.9)
+          ? canvas.toDataURL('image/jpeg', 0.95)
           : photoDataUrl;
-        const finalPhotoUrl = await compressImageDataUrl(rawFinalUrl, 1280, 0.86);
+        const finalPhotoUrl = await compressImageDataUrl(rawFinalUrl, 2048, 0.92);
 
         state.currentTab = 'home';
         state.selectedBookId = book.id;
