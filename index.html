@@ -1257,9 +1257,28 @@
     function renderBookFeedView(container, book) {
       const owner = getUserById(book.ownerId);
       const isMyBook = canManageBook(book);
+
+      function getEntrySortTimestamp(entry) {
+        if (!entry) return 0;
+        const created = Number(entry.createdAt);
+        if (Number.isFinite(created) && created > 0) return created;
+
+        const idMatch = String(entry.id || '').match(/(\d{10,})/);
+        if (idMatch) {
+          const parsedIdTs = Number(idMatch[1]);
+          if (Number.isFinite(parsedIdTs) && parsedIdTs > 0) return parsedIdTs;
+        }
+
+        if (entry.photoDate) {
+          const parsedDate = Date.parse(`${entry.photoDate}T00:00:00`);
+          if (!Number.isNaN(parsedDate)) return parsedDate;
+        }
+        return 0;
+      }
+
       const bookEntries = state.entries
         .filter((e) => e.bookId === book.id)
-        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        .sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
 
       const entriesHtml =
         bookEntries.length === 0
