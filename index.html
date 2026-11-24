@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>독서 구절 사진 기록장</title>
-  <!-- Tailwind CSS 로드 -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 귀여운 한글 폰트 및 Inter 폰트 로드 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gamja+Flower&family=Inter:wght@400;500;600;700&family=Jua&display=swap" rel="stylesheet" />
@@ -32,7 +30,6 @@
     };
   </script>
   <style>
-    /* 기본 타이포그래피 및 터치 피드백 스타일 */
     html, body {
       background-color: #FDF8F2;
       color: #241D18;
@@ -43,34 +40,31 @@
       word-break: keep-all;
       -webkit-tap-highlight-color: transparent;
     }
-    /* 종이 질감 배경 */
     .book-page-texture {
       background-color: #FFFDF9;
       background-image: radial-gradient(rgba(125, 111, 99, 0.06) 0.75px, transparent 0.75px);
       background-size: 14px 14px;
     }
-    /* 책등 제본 느낌 */
     .book-spine-edge {
       box-shadow: inset 6px 0 10px -6px rgba(44, 36, 30, 0.28), 0 4px 10px rgba(44, 36, 30, 0.08);
     }
-    /* 책장 선반 받침 */
     .shelf-ledge {
       background: linear-gradient(to bottom, #EADBC7 0%, #D9C3A8 100%);
       height: 10px;
       border-radius: 9999px;
       box-shadow: 0 3px 6px rgba(44, 36, 30, 0.12);
     }
-    /* 형광펜 캔버스 터치 스크롤 방지 */
     .highlighter-canvas {
       touch-action: none;
+    }
+    .long-press-active {
+      transform: scale(0.96);
+      box-shadow: 0 0 0 3px rgba(201, 106, 66, 0.35);
     }
   </style>
 </head>
 <body class="min-h-screen bg-paper text-ink antialiased selection:bg-accentSoft selection:text-accent">
-  <!-- 전체 앱 래퍼 -->
   <div id="app" class="mx-auto max-w-md min-h-screen flex flex-col book-page-texture shadow-md border-x border-amber-900/10 relative pb-24">
-
-    <!-- 상단 헤더 -->
     <header class="sticky top-0 z-20 bg-paper/95 backdrop-blur border-b-2 border-amber-900/15 px-4 py-3.5">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0">
@@ -89,7 +83,6 @@
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
-          <!-- 새소식 버튼 -->
           <button
             id="newsFeedBtn"
             type="button"
@@ -104,7 +97,6 @@
             >0</span>
           </button>
 
-          <!-- 현재 기록하는 사용자 (기기별 고정 잠금 지원) -->
           <div class="relative shrink-0">
             <button
               id="activeUserBadgeBtn"
@@ -117,7 +109,6 @@
               <span id="activeUserLockIcon" class="text-[11px] leading-none text-muted">🔒</span>
             </button>
 
-            <!-- 사용자 선택/잠금 해제 팝오버 -->
             <div
               id="activeUserDropdown"
               class="hidden absolute right-0 top-full mt-1.5 w-48 rounded-2xl bg-surface border border-amber-900/20 shadow-lg py-1.5 z-40"
@@ -127,10 +118,8 @@
       </div>
     </header>
 
-    <!-- 메인 콘텐츠 영역 -->
     <main id="mainContent" class="flex-1 px-4 pt-4 space-y-6"></main>
 
-    <!-- 하단 네비게이션 바 -->
     <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-surface/95 backdrop-blur border-t border-amber-900/10 px-3 py-2 z-30">
       <div class="grid grid-cols-2 gap-2">
         <button
@@ -153,12 +142,10 @@
     </nav>
   </div>
 
-  <!-- 커스텀 모달 컨테이너 -->
   <div id="modalBackdrop" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]">
     <div id="modalCard" class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl bg-surface p-5 shadow-xl border border-amber-900/10 space-y-4"></div>
   </div>
 
-  <!-- 토스트 메시지 배너 -->
   <div id="toastBanner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 hidden max-w-xs w-max rounded-full bg-ink text-white text-xs font-medium px-4 py-2.5 shadow-lg transition-all"></div>
 
   <script type="module">
@@ -176,7 +163,6 @@
       collection,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Firebase 프로젝트 기본 설정
     const FALLBACK_FIREBASE_CONFIG = {
       apiKey: "AIzaSyDYv4AIaGOSA1VRRGPICMMVLOMtJY-G9VA",
       authDomain: "readingmemo-a1306.firebaseapp.com",
@@ -220,7 +206,6 @@
       return doc(db, "artifacts", appId, "public", "data", collectionName, docId);
     }
 
-    // 사용자 테마 컬러 및 형광펜 팔레트
     const AVATAR_PALETTE = [
       { bg: 'bg-amber-200', text: 'text-amber-950', dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
       { bg: 'bg-emerald-200', text: 'text-emerald-950', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
@@ -243,7 +228,6 @@
       { id: 'user-ttungi', name: '뚱이', paletteIndex: 2, createdAt: 3 },
     ];
 
-    // 쿠키 및 IndexedDB 저장소 유틸리티
     function readCookieValue(name) {
       const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
       return match ? decodeURIComponent(match[1]) : '';
@@ -381,6 +365,7 @@
     let initialEntriesLoaded = false;
     let missedCatchupDone = false;
     let isRefreshingRemoteData = false;
+    let lastResumeSyncAt = 0;
     const knownBookIds = new Set();
     const knownEntryIds = new Set();
     const knownReplyIds = new Set();
@@ -392,6 +377,7 @@
         localStorage.setItem('readingmemo_last_seen_at', String(now));
       } catch (e) {}
       writeCookieValue('readingmemo_last_seen_at', String(now), 365);
+      updateNewsBadgeUI();
     }
 
     function setFixedActiveUser(userId, lock = true) {
@@ -422,6 +408,48 @@
         url.searchParams.set('user', userId);
         window.history.replaceState({}, '', url.toString());
       } catch (e) {}
+    }
+
+    function getCleanShareUrl() {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('user');
+        url.hash = '';
+        return url.toString();
+      } catch (e) {
+        return window.location.href.split('?')[0].split('#')[0];
+      }
+    }
+
+    function copyTextToClipboard(text) {
+      return new Promise((resolve) => {
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(
+            () => resolve(true),
+            () => resolve(fallbackCopy(text))
+          );
+          return;
+        }
+        resolve(fallbackCopy(text));
+      });
+    }
+
+    function fallbackCopy(text) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return Boolean(ok);
+      } catch (e) {
+        return false;
+      }
     }
 
     async function hydratePrefsFromIndexedDb() {
@@ -531,45 +559,72 @@
       backdrop.classList.remove('flex');
     }
 
-    // 책 표지 확대 보기 모달 열기
     function openBookCoverZoomModal(bookId) {
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
       const owner = getUserById(book.ownerId);
-      const palette = getPaletteForUser(owner);
-
-      const zoomedCoverHtml = book.coverImage
-        ? `
-          <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper shadow-sm">
-            <img
-              src="${escapeHtml(book.coverImage)}"
-              alt="${escapeHtml(book.title)} 표지 확대"
-              class="w-full max-h-[62vh] object-contain mx-auto block bg-amber-50/50"
-            />
-          </div>
-        `
-        : `
-          <div class="w-48 h-64 mx-auto rounded-r-2xl rounded-l-md flex flex-col justify-between p-4 ${palette.bg} ${palette.text} book-spine-edge border border-amber-900/15">
-            <span class="text-xs font-bold opacity-80">${escapeHtml(owner.name)}의 책장</span>
-            <span class="font-serif text-xl font-bold leading-snug">${escapeHtml(book.title)}</span>
-            <span class="text-xs opacity-80">${escapeHtml(book.author || '지은이 미상')}</span>
-          </div>
-        `;
 
       openModal(`
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
-            <span class="text-xs font-semibold text-accent">${escapeHtml(owner.name)}의 책장 · 표지 확대</span>
+            <span class="text-xs font-semibold text-accent">${escapeHtml(owner.name)}의 책장</span>
             <h3 class="font-serif text-lg font-bold text-ink leading-snug">${escapeHtml(book.title)}</h3>
           </div>
           <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center shrink-0 cursor-pointer">×</button>
         </div>
 
-        ${zoomedCoverHtml}
+        <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper shadow-sm flex items-center justify-center min-h-[220px]">
+          ${
+            book.coverImage
+              ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)} 표지 확대" class="w-full max-h-[68vh] object-contain block" />`
+              : `<div class="p-8 text-center text-muted text-sm">등록된 책 표지 이미지가 없습니다.</div>`
+          }
+        </div>
 
         <div class="flex items-center justify-between text-xs text-muted px-1">
-          <span>지은이: ${escapeHtml(book.author || '지은이 미상')}</span>
+          <span>지은이: ${escapeHtml(book.author || '미입력')}</span>
           <span>소장: ${escapeHtml(owner.name)}</span>
+        </div>
+
+        <div class="pt-1">
+          <button type="button" data-close-modal class="w-full rounded-2xl bg-accent text-white text-sm font-bold py-2.5 cursor-pointer">
+            닫기
+          </button>
+        </div>
+      `);
+
+      const modalCard = document.getElementById('modalCard');
+      modalCard?.querySelectorAll('[data-close-modal]').forEach((btn) => {
+        btn.addEventListener('click', closeModal);
+      });
+    }
+
+    function openEntryPhotoZoomModal(entryId) {
+      const entry = state.entries.find((e) => e.id === entryId);
+      if (!entry || !entry.photoUrl) return;
+      const book = state.books.find((b) => b.id === entry.bookId);
+      const author = getUserById(entry.authorId);
+
+      openModal(`
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="text-xs font-semibold text-accent">${escapeHtml(book ? book.title : '구절 기록')} · ${escapeHtml(author.name)}</span>
+            <h3 class="font-serif text-lg font-bold text-ink leading-snug">구절 사진 확대 보기</h3>
+          </div>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center shrink-0 cursor-pointer">×</button>
+        </div>
+
+        <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper shadow-sm">
+          <img
+            src="${escapeHtml(entry.photoUrl)}"
+            alt="${escapeHtml(book ? book.title : '구절')} 사진 확대"
+            class="w-full max-h-[68vh] object-contain mx-auto block bg-amber-50/50"
+          />
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-muted px-1">
+          <span>작성자: ${escapeHtml(author.name)}</span>
+          <span>기록일: ${escapeHtml(entry.photoDate || '')}</span>
         </div>
 
         <div class="pt-1">
@@ -593,86 +648,265 @@
         const ctx = new AudioCtx();
         const now = ctx.currentTime;
 
-        const notes = [659.25, 880];
-        notes.forEach((freq, idx) => {
+        const playTone = (freq, startTime, duration) => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, now + idx * 0.14);
-          gain.gain.setValueAtTime(0.001, now + idx * 0.14);
-          gain.gain.exponentialRampToValueAtTime(0.14, now + idx * 0.14 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.14 + 0.35);
+          osc.frequency.setValueAtTime(freq, startTime);
+          gain.gain.setValueAtTime(0.001, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.14, startTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
           osc.connect(gain);
           gain.connect(ctx.destination);
-          osc.start(now + idx * 0.14);
-          osc.stop(now + idx * 0.14 + 0.36);
+          osc.start(startTime);
+          osc.stop(startTime + duration + 0.02);
+        };
+
+        playTone(659.25, now, 0.22);
+        playTone(880, now + 0.14, 0.32);
+
+        setTimeout(() => {
+          ctx.close().catch(() => {});
+        }, 800);
+      } catch (e) {}
+    }
+
+    function triggerBrowserNotification(title, body, onClickAction = null) {
+      if (!state.browserNotifyEnabled) return;
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      try {
+        const notif = new Notification(title, {
+          body,
+          tag: `readingmemo-${Date.now()}`,
         });
-      } catch (err) {}
+        notif.onclick = () => {
+          window.focus();
+          if (typeof onClickAction === 'function') {
+            onClickAction();
+          }
+          notif.close();
+        };
+      } catch (e) {}
     }
 
-    function triggerIncomingActivityAlert(actorId, message) {
-      if (!actorId || actorId === state.activeUserId) return;
-      playNotificationChime();
-      showToast(`🔔 ${message}`);
-      updateNewsBadgeUI();
-      if (
-        state.browserNotifyEnabled &&
-        'Notification' in window &&
-        Notification.permission === 'granted'
-      ) {
-        try {
-          new Notification('우리의 독서메모', { body: message });
-        } catch (err) {}
-      }
-    }
+    function collectActivityItems() {
+      const items = [];
 
-    function collectMissedActivityMessages(sinceTs) {
-      const messages = [];
       for (const book of state.books) {
-        if (book.ownerId !== state.activeUserId && Number(book.createdAt || 0) > sinceTs) {
-          const owner = getUserById(book.ownerId);
-          messages.push(`${owner.name}님이 새 책 "${book.title}"을(를) 올렸어요.`);
-        }
+        const ts = Number(book.createdAt || 0);
+        const actor = getUserById(book.ownerId);
+        items.push({
+          id: `act-book-${book.id}`,
+          type: 'book',
+          ts,
+          actorId: book.ownerId,
+          actorName: actor.name,
+          bookId: book.id,
+          bookTitle: book.title || '제목 없는 책',
+          summary: `${actor.name}님이 "${book.title || '제목 없는 책'}" 책을 책장에 꽂았어요.`,
+          dateLabel: book.createdAt ? new Date(book.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+        });
       }
+
       for (const entry of state.entries) {
         const book = state.books.find((b) => b.id === entry.bookId);
-        const bookTitle = book ? book.title : '책장';
-        if (entry.authorId !== state.activeUserId && Number(entry.createdAt || 0) > sinceTs) {
-          const author = getUserById(entry.authorId);
-          messages.push(`${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`);
-        }
+        const bookTitle = book ? book.title : '책';
+        const actor = getUserById(entry.authorId);
+        const entryTs = Number(entry.createdAt || 0);
+
+        items.push({
+          id: `act-entry-${entry.id}`,
+          type: 'entry',
+          ts: entryTs,
+          actorId: entry.authorId,
+          actorName: actor.name,
+          bookId: entry.bookId,
+          bookTitle,
+          summary: `${actor.name}님이 "${bookTitle}"에 새 구절 사진을 남겼어요.`,
+          dateLabel: entry.photoDate || (entryTs ? new Date(entryTs).toLocaleDateString('ko-KR') : ''),
+        });
+
         const replies = Array.isArray(entry.replies) ? entry.replies : [];
-        for (const rep of replies) {
-          if (rep.authorId !== state.activeUserId && Number(rep.createdAt || 0) > sinceTs) {
-            const repAuthor = getUserById(rep.authorId);
-            messages.push(`${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`);
+        replies.forEach((rep, idx) => {
+          const repActor = getUserById(rep.authorId);
+          const idMatch = String(rep.id || '').match(/(\d{10,})/);
+          const repTs = idMatch ? Number(idMatch[1]) : (entryTs + idx + 1);
+          items.push({
+            id: `act-reply-${entry.id}-${rep.id || idx}`,
+            type: 'reply',
+            ts: repTs,
+            actorId: rep.authorId,
+            actorName: repActor.name,
+            bookId: entry.bookId,
+            bookTitle,
+            summary: `${repActor.name}님이 "${bookTitle}" 구절에 답글: "${rep.text || ''}"`,
+            dateLabel: rep.date || '',
+          });
+        });
+      }
+
+      items.sort((a, b) => b.ts - a.ts);
+      return items;
+    }
+
+    function getUnreadActivityCount() {
+      const items = collectActivityItems();
+      return items.filter((item) => item.actorId !== state.activeUserId && item.ts > state.lastSeenAt).length;
+    }
+
+    function updateNewsBadgeUI() {
+      const badge = document.getElementById('newsBadgeCount');
+      if (!badge) return;
+      const unread = getUnreadActivityCount();
+      badge.textContent = String(unread);
+      if (unread > 0) {
+        badge.className = 'min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums';
+      } else {
+        badge.className = 'min-w-[18px] h-[18px] px-1 rounded-full bg-amber-900/15 text-muted text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums';
+      }
+    }
+
+    function openNewsFeedModal() {
+      markLastSeenNow();
+      const items = collectActivityItems().slice(0, 30);
+
+      const listHtml = items.length
+        ? items
+            .map((item) => {
+              const icon = item.type === 'book' ? '📘' : item.type === 'entry' ? '📷' : '💬';
+              return `
+                <button
+                  type="button"
+                  data-jump-book="${escapeHtml(item.bookId)}"
+                  class="w-full text-left rounded-2xl border border-amber-900/15 bg-paper hover:bg-amber-100/50 p-3 transition flex items-start gap-2.5 cursor-pointer"
+                >
+                  <span class="text-base leading-none mt-0.5 shrink-0">${icon}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-semibold text-ink leading-snug">${escapeHtml(item.summary)}</p>
+                    <p class="text-[11px] text-muted mt-0.5">${escapeHtml(item.bookTitle)} · ${escapeHtml(item.dateLabel)}</p>
+                  </div>
+                </button>
+              `;
+            })
+            .join('')
+        : `<p class="text-center text-sm text-muted py-6">아직 올라온 새소식이 없어요.</p>`;
+
+      openModal(`
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <span class="text-xs font-semibold text-accent">함께 읽는 활동 알림</span>
+            <h3 class="font-serif text-lg font-bold text-ink">새소식</h3>
+          </div>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center cursor-pointer">×</button>
+        </div>
+
+        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-0.5">
+          ${listHtml}
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button type="button" data-close-modal class="rounded-2xl bg-accent text-white text-sm font-bold px-4 py-2 cursor-pointer">확인</button>
+        </div>
+      `);
+
+      const modalCard = document.getElementById('modalCard');
+      modalCard?.querySelectorAll('[data-close-modal]').forEach((btn) => {
+        btn.addEventListener('click', closeModal);
+      });
+      modalCard?.querySelectorAll('[data-jump-book]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetBookId = btn.getAttribute('data-jump-book');
+          closeModal();
+          if (targetBookId && state.books.some((b) => b.id === targetBookId)) {
+            state.currentTab = 'home';
+            state.selectedBookId = targetBookId;
+            renderApp();
           }
+        });
+      });
+    }
+
+    function notifyIncomingEvent({ actorId, title, body, bookId }) {
+      if (!actorId || actorId === state.activeUserId) return;
+      playNotificationChime();
+      showToast(`🔔 ${body}`);
+      triggerBrowserNotification(title, body, () => {
+        if (bookId && state.books.some((b) => b.id === bookId)) {
+          state.currentTab = 'home';
+          state.selectedBookId = bookId;
+          renderApp();
+        }
+      });
+    }
+
+    function createPhotoCaptureController(modalRoot) {
+      let stream = null;
+      const videoEl = modalRoot.querySelector('[data-camera-video]');
+      const cameraBox = modalRoot.querySelector('[data-camera-box]');
+      const captureBtn = modalRoot.querySelector('[data-capture-photo-btn]');
+      const stopCameraBtn = modalRoot.querySelector('[data-stop-camera-btn]');
+
+      function stopStream() {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+        }
+        if (videoEl) {
+          videoEl.srcObject = null;
+        }
+        if (cameraBox) {
+          cameraBox.classList.add('hidden');
         }
       }
-      return messages;
-    }
 
-    function notifyMissedActivity(messages) {
-      if (!Array.isArray(messages) || messages.length === 0) return;
-      playNotificationChime();
-      const summary =
-        messages.length === 1
-          ? messages[0]
-          : `앱이 꺼진 동안 새 소식 ${messages.length}건이 도착했어요! (${messages[0]})`;
-      showToast(`🔔 ${summary}`);
-      updateNewsBadgeUI();
-      if (
-        state.browserNotifyEnabled &&
-        'Notification' in window &&
-        Notification.permission === 'granted'
-      ) {
+      async function startStream(onCapturedDataUrl) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showToast('이 브라우저에서는 직접 카메라 미리보기를 지원하지 않아 사진 선택을 열어드릴게요.');
+          modalRoot.querySelector('[data-file-input]')?.click();
+          return;
+        }
         try {
-          new Notification('우리의 독서메모', { body: summary });
-        } catch (err) {}
+          stopStream();
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } },
+            audio: false,
+          });
+          if (videoEl && cameraBox) {
+            videoEl.srcObject = stream;
+            cameraBox.classList.remove('hidden');
+            await videoEl.play();
+          }
+          if (captureBtn) {
+            captureBtn.onclick = async () => {
+              if (!videoEl) return;
+              const w = videoEl.videoWidth || 1280;
+              const h = videoEl.videoHeight || 720;
+              const snapCanvas = document.createElement('canvas');
+              snapCanvas.width = w;
+              snapCanvas.height = h;
+              const sctx = snapCanvas.getContext('2d');
+              sctx.drawImage(videoEl, 0, 0, w, h);
+              const rawUrl = snapCanvas.toDataURL('image/jpeg', 0.9);
+              const compressedUrl = await compressImageDataUrl(rawUrl, 960, 0.78);
+              stopStream();
+              onCapturedDataUrl(compressedUrl);
+            };
+          }
+          if (stopCameraBtn) {
+            stopCameraBtn.onclick = () => stopStream();
+          }
+        } catch (err) {
+          console.warn('카메라 스트림 접근 실패, 파일 선택으로 대체:', err);
+          stopStream();
+          modalRoot.querySelector('[data-file-input]')?.click();
+        }
       }
+
+      return { startStream, stopStream };
     }
 
-    function compressImageDataUrl(rawDataUrl, maxDimension = 1440, quality = 0.86) {
+    function compressImageDataUrl(rawDataUrl, maxDimension = 960, quality = 0.78) {
       return new Promise((resolve) => {
         if (!rawDataUrl || !rawDataUrl.startsWith('data:image/')) {
           resolve(rawDataUrl);
@@ -680,8 +914,8 @@
         }
         const img = new Image();
         img.onload = () => {
-          const w = img.naturalWidth || 1000;
-          const h = img.naturalHeight || 750;
+          const w = img.naturalWidth || 800;
+          const h = img.naturalHeight || 800;
           const scale = Math.max(w, h) > maxDimension ? maxDimension / Math.max(w, h) : 1;
           const targetW = Math.max(1, Math.round(w * scale));
           const targetH = Math.max(1, Math.round(h * scale));
@@ -697,34 +931,30 @@
       });
     }
 
-    function attachNativeCameraAndFileInputs(containerEl, onImageReady, maxDimension = 1440) {
-      const inputs = containerEl.querySelectorAll(
-        '[data-native-camera-input], [data-file-input]'
-      );
-      inputs.forEach((input) => {
-        input.addEventListener('change', async (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = async () => {
-            const rawUrl = String(reader.result || '');
-            const compressed = await compressImageDataUrl(rawUrl, maxDimension, 0.86);
-            onImageReady(compressed);
-          };
-          reader.readAsDataURL(file);
-          input.value = '';
-        });
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) {
+          reject(new Error('선택된 파일이 없습니다.'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const raw = String(reader.result || '');
+          const compressed = await compressImageDataUrl(raw);
+          resolve(compressed);
+        };
+        reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+        reader.readAsDataURL(file);
       });
-      return { stopStream: () => {} };
     }
 
-    // Firestore 동기화 헬퍼
     async function syncSaveUser(userObj) {
       if (!db || !currentAuthUser) return;
       try {
         await setDoc(getPublicDoc('users', userObj.id), userObj);
       } catch (err) {
         console.error('사용자 저장 오류:', err);
+        showToast('클라우드 동기화에 실패했습니다.');
       }
     }
 
@@ -781,132 +1011,144 @@
       }
     }
 
-    function maybeNotifyMissedCatchup() {
-      if (!initialBooksLoaded || !initialEntriesLoaded || missedCatchupDone) return;
-      missedCatchupDone = true;
-      const prevSeen = state.lastSeenAt || 0;
-      const missed = collectMissedActivityMessages(prevSeen);
-      if (missed.length > 0) {
-        notifyMissedActivity(missed);
-      }
-      updateNewsBadgeUI();
-    }
-
     function applyBooksSnapshotDocs(docsList) {
       const loadedBooks = docsList.map((item) => ({ ...item }));
       loadedBooks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      state.books = [...loadedBooks];
 
       if (!initialBooksLoaded) {
-        initialBooksLoaded = true;
         loadedBooks.forEach((b) => knownBookIds.add(b.id));
-        maybeNotifyMissedCatchup();
+        initialBooksLoaded = true;
       } else {
-        for (const b of loadedBooks) {
-          if (!knownBookIds.has(b.id)) {
-            knownBookIds.add(b.id);
-            if (b.ownerId && b.ownerId !== state.activeUserId) {
-              const owner = getUserById(b.ownerId);
-              triggerIncomingActivityAlert(
-                b.ownerId,
-                `${owner.name}님이 새 책 "${b.title}"을(를) 추가했어요.`
-              );
-            }
+        for (const book of loadedBooks) {
+          if (!knownBookIds.has(book.id)) {
+            knownBookIds.add(book.id);
+            const actor = getUserById(book.ownerId);
+            notifyIncomingEvent({
+              actorId: book.ownerId,
+              title: '새 책이 책장에 추가되었어요',
+              body: `${actor.name}님이 "${book.title}" 책을 추가했습니다.`,
+              bookId: book.id,
+            });
           }
         }
       }
+
+      state.books = [...loadedBooks];
+      updateNewsBadgeUI();
+      renderApp();
     }
 
     function applyEntriesSnapshotDocs(docsList) {
       const loadedEntries = docsList.map((item) => ({
         ...item,
-        replies: Array.isArray(item.replies) ? item.replies.map((r) => ({ ...r })) : [],
+        replies: Array.isArray(item.replies) ? [...item.replies] : [],
       }));
-      // 먼저 찍은 구절이 위, 나중에 찍은 구절이 아래로 오도록 오름차순 정렬
       loadedEntries.sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
-      state.entries = [...loadedEntries];
 
       if (!initialEntriesLoaded) {
-        initialEntriesLoaded = true;
         loadedEntries.forEach((e) => {
           knownEntryIds.add(e.id);
-          const replies = Array.isArray(e.replies) ? e.replies : [];
-          replies.forEach((rep) => {
-            if (rep && rep.id) knownReplyIds.add(rep.id);
+          (e.replies || []).forEach((r, idx) => {
+            knownReplyIds.add(`${e.id}:${r.id || idx}`);
           });
         });
-        maybeNotifyMissedCatchup();
+        initialEntriesLoaded = true;
       } else {
         for (const entry of loadedEntries) {
           const book = state.books.find((b) => b.id === entry.bookId);
-          const bookTitle = book ? book.title : '책장';
+          const bookTitle = book ? book.title : '책';
 
           if (!knownEntryIds.has(entry.id)) {
             knownEntryIds.add(entry.id);
-            if (entry.authorId && entry.authorId !== state.activeUserId) {
-              const author = getUserById(entry.authorId);
-              triggerIncomingActivityAlert(
-                entry.authorId,
-                `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요.`
-              );
-            }
+            const actor = getUserById(entry.authorId);
+            notifyIncomingEvent({
+              actorId: entry.authorId,
+              title: '새 구절 사진이 올라왔어요',
+              body: `${actor.name}님이 "${bookTitle}"에 새 구절을 남겼습니다.`,
+              bookId: entry.bookId,
+            });
           }
 
-          const replies = Array.isArray(entry.replies) ? entry.replies : [];
-          for (const rep of replies) {
-            if (rep && rep.id && !knownReplyIds.has(rep.id)) {
-              knownReplyIds.add(rep.id);
-              if (rep.authorId && rep.authorId !== state.activeUserId) {
-                const repAuthor = getUserById(rep.authorId);
-                triggerIncomingActivityAlert(
-                  rep.authorId,
-                  `${repAuthor.name}님이 "${bookTitle}" 구절에 답글을 남겼어요.`
-                );
-              }
+          const replies = entry.replies || [];
+          replies.forEach((rep, idx) => {
+            const key = `${entry.id}:${rep.id || idx}`;
+            if (!knownReplyIds.has(key)) {
+              knownReplyIds.add(key);
+              const repActor = getUserById(rep.authorId);
+              notifyIncomingEvent({
+                actorId: rep.authorId,
+                title: '새 답글이 달렸어요',
+                body: `${repActor.name}님이 "${bookTitle}" 구절에 답글을 남겼습니다.`,
+                bookId: entry.bookId,
+              });
             }
-          }
+          });
         }
+      }
+
+      state.entries = [...loadedEntries];
+      updateNewsBadgeUI();
+      renderApp();
+    }
+
+    function checkMissedActivitySinceLastVisit() {
+      if (missedCatchupDone) return;
+      if (!initialBooksLoaded || !initialEntriesLoaded) return;
+      missedCatchupDone = true;
+
+      const unread = getUnreadActivityCount();
+      if (unread > 0) {
+        showToast(`🔔 부재중 새소식 ${unread}건이 있어요! 상단 [새소식]을 눌러 확인해보세요.`);
       }
     }
 
     async function forceSyncLatestRemoteData() {
-      if (!db || !currentAuthUser) return;
+      if (!db || !currentAuthUser) {
+        renderApp();
+        return;
+      }
+      if (isRefreshingRemoteData) return;
       isRefreshingRemoteData = true;
       try {
         try {
           await enableNetwork(db);
         } catch (netErr) {}
 
-        const [booksSnap, entriesSnap] = await Promise.all([
+        const [usersSnap, booksSnap, entriesSnap] = await Promise.all([
+          getDocs(getPublicCollection('users')),
           getDocs(getPublicCollection('books')),
           getDocs(getPublicCollection('entries')),
         ]);
 
-        const freshBooks = [];
-        booksSnap.forEach((docSnap) => {
-          freshBooks.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        const freshEntries = [];
-        entriesSnap.forEach((docSnap) => {
-          freshEntries.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        applyBooksSnapshotDocs(freshBooks);
-        applyEntriesSnapshotDocs(freshEntries);
-
-        const prevSeen = state.lastSeenAt || 0;
-        const missedMessages = collectMissedActivityMessages(prevSeen);
-        markLastSeenNow();
-        if (missedMessages.length > 0 && initialBooksLoaded && initialEntriesLoaded) {
-          notifyMissedActivity(missedMessages);
+        if (!usersSnap.empty) {
+          const loadedUsers = [];
+          usersSnap.forEach((docSnap) => {
+            loadedUsers.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.users = [...loadedUsers];
         }
-        updateNewsBadgeUI();
-        const mainContent = document.getElementById('mainContent');
-        if (mainContent) mainContent.innerHTML = '';
+
+        const loadedBooks = [];
+        booksSnap.forEach((docSnap) => {
+          loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        applyBooksSnapshotDocs(loadedBooks);
+
+        const loadedEntries = [];
+        entriesSnap.forEach((docSnap) => {
+          loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        applyEntriesSnapshotDocs(loadedEntries);
+
+        const mainEl = document.getElementById('mainContent');
+        if (mainEl) {
+          mainEl.innerHTML = '';
+        }
         renderApp();
       } catch (err) {
-        console.error('복귀 시 최신 데이터 동기화 오류:', err);
+        console.warn('복귀 시 최신 데이터 동기화 오류:', err);
+        renderApp();
       } finally {
         isRefreshingRemoteData = false;
       }
@@ -924,14 +1166,13 @@
         }
       } catch (err) {
         console.error('Firebase 인증 오류:', err);
-        showToast('실시간 연동 인증에 실패했습니다.');
+        showToast('실시간 연동 인증에 실패했습니다. 설정을 확인해주세요.');
         return;
       }
 
       if (!currentAuthUser) return;
       state.cloudConnected = true;
 
-      // 1) 사용자 목록 실시간 구독
       onSnapshot(
         getPublicCollection('users'),
         async (snapshot) => {
@@ -947,13 +1188,8 @@
           });
           loadedUsers.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
           state.users = loadedUsers;
-
-          const latestPersisted = getPersistedUserConfig();
-          const candidateId = latestPersisted.userId || state.activeUserId;
-          if (state.users.some((u) => u.id === candidateId)) {
-            setFixedActiveUser(candidateId, latestPersisted.isLocked);
-          } else if (state.users[0]) {
-            setFixedActiveUser(state.users[0].id, true);
+          if (!state.users.some((u) => u.id === state.activeUserId) && state.users[0]) {
+            setFixedActiveUser(state.users[0].id, state.isUserLocked);
           }
           renderApp();
         },
@@ -962,34 +1198,30 @@
         }
       );
 
-      // 2) 책장 목록 실시간 구독
       onSnapshot(
         getPublicCollection('books'),
         (snapshot) => {
-          const loadedBooks = [];
+          const docsList = [];
           snapshot.forEach((docSnap) => {
-            loadedBooks.push({ id: docSnap.id, ...docSnap.data() });
+            docsList.push({ id: docSnap.id, ...docSnap.data() });
           });
-          applyBooksSnapshotDocs(loadedBooks);
-          updateNewsBadgeUI();
-          renderApp();
+          applyBooksSnapshotDocs(docsList);
+          checkMissedActivitySinceLastVisit();
         },
         (error) => {
           console.error('books 구독 오류:', error);
         }
       );
 
-      // 3) 구절 기록 및 답글 실시간 구독
       onSnapshot(
         getPublicCollection('entries'),
         (snapshot) => {
-          const loadedEntries = [];
+          const docsList = [];
           snapshot.forEach((docSnap) => {
-            loadedEntries.push({ id: docSnap.id, ...docSnap.data() });
+            docsList.push({ id: docSnap.id, ...docSnap.data() });
           });
-          applyEntriesSnapshotDocs(loadedEntries);
-          updateNewsBadgeUI();
-          renderApp();
+          applyEntriesSnapshotDocs(docsList);
+          checkMissedActivitySinceLastVisit();
         },
         (error) => {
           console.error('entries 구독 오류:', error);
@@ -997,693 +1229,759 @@
       );
     }
 
-    function getRecentActivityItems() {
-      const items = [];
-
-      for (const book of state.books) {
-        if (book.ownerId === state.activeUserId) continue;
-        const owner = getUserById(book.ownerId);
-        const ts = Number(book.createdAt || 0);
-        items.push({
-          id: `news-book-${book.id}`,
-          type: 'book',
-          bookId: book.id,
-          timestamp: ts,
-          actorName: owner.name,
-          summary: `${owner.name}님이 새 책 "${book.title}"을(를) 책장에 꽂았어요`,
-          dateLabel: ts ? new Date(ts).toLocaleDateString('ko-KR') : '',
-        });
-      }
-
-      for (const entry of state.entries) {
-        const book = state.books.find((b) => b.id === entry.bookId);
-        const bookTitle = book ? book.title : '책장';
-        const entryTs = Number(entry.createdAt || 0);
-
-        if (entry.authorId !== state.activeUserId) {
-          const author = getUserById(entry.authorId);
-          items.push({
-            id: `news-entry-${entry.id}`,
-            type: 'entry',
-            bookId: entry.bookId,
-            timestamp: entryTs,
-            actorName: author.name,
-            summary: `${author.name}님이 "${bookTitle}"에 새 구절을 올렸어요`,
-            dateLabel: entry.photoDate || (entryTs ? new Date(entryTs).toLocaleDateString('ko-KR') : ''),
-          });
-        }
-
-        const replies = Array.isArray(entry.replies) ? entry.replies : [];
-        for (const rep of replies) {
-          const repTs = Number(rep.createdAt || 0);
-          if (rep.authorId !== state.activeUserId) {
-            const repAuthor = getUserById(rep.authorId);
-            items.push({
-              id: `news-reply-${rep.id}`,
-              type: 'reply',
-              bookId: entry.bookId,
-              timestamp: repTs,
-              actorName: repAuthor.name,
-              summary: `${repAuthor.name}님이 "${bookTitle}" 구절에 답글: "${rep.text}"`,
-              dateLabel: rep.date || (repTs ? new Date(repTs).toLocaleDateString('ko-KR') : ''),
-            });
-          }
-        }
-      }
-
-      items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      return items;
-    }
-
-    function updateNewsBadgeUI() {
-      const badgeEl = document.getElementById('newsBadgeCount');
-      if (!badgeEl) return;
-      const since = state.lastSeenAt || 0;
-      const unreadCount = getRecentActivityItems().filter(
-        (item) => Number(item.timestamp || 0) > since
-      ).length;
-
-      badgeEl.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
-      badgeEl.classList.remove('hidden');
-      badgeEl.classList.add('inline-flex');
-      if (unreadCount > 0) {
-        badgeEl.className =
-          'min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent text-white text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums shadow-2xs';
-      } else {
-        badgeEl.className =
-          'min-w-[20px] h-[20px] px-1.5 rounded-full bg-amber-900/15 text-muted text-[11px] font-bold inline-flex items-center justify-center leading-none tabular-nums';
-      }
-    }
-
-    function openNewsFeedModal() {
-      const items = getRecentActivityItems();
-      const listHtml =
-        items.length === 0
-          ? `<div class="text-center py-8 text-xs text-muted">아직 올라온 새 소식이 없어요.</div>`
-          : items
-              .map((item) => {
-                const icon =
-                  item.type === 'book' ? '📚' : item.type === 'entry' ? '✍️' : '💬';
-                return `
-                  <button
-                    type="button"
-                    data-jump-news-book="${escapeHtml(item.bookId || '')}"
-                    class="w-full text-left rounded-2xl bg-paper hover:bg-amber-100/70 border border-amber-900/10 p-3 flex items-start gap-2.5 transition cursor-pointer"
-                  >
-                    <span class="text-base leading-none mt-0.5">${icon}</span>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-xs font-bold text-ink leading-snug">${escapeHtml(item.summary)}</p>
-                      <p class="text-[11px] text-muted mt-0.5">${escapeHtml(item.dateLabel)}</p>
-                    </div>
-                  </button>
-                `;
-              })
-              .join('');
-
-      openModal(`
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-xs font-semibold text-accent">🔔 새소식 모아보기</span>
-            <h3 class="font-serif text-lg font-bold text-ink">최근 올라온 기록</h3>
-          </div>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
-        </div>
-
-        <div class="space-y-2 max-h-80 overflow-y-auto pr-0.5">
-          ${listHtml}
-        </div>
-
-        <div class="pt-1 flex items-center gap-2">
-          <button type="button" id="markAllNewsReadBtn" class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5">
-            모두 읽음 처리
-          </button>
-          <button type="button" data-close-modal class="flex-1 rounded-2xl bg-accent text-white text-xs font-bold py-2.5">
-            닫기
-          </button>
-        </div>
-      `);
-
-      markLastSeenNow();
-      updateNewsBadgeUI();
-
-      const modalCard = document.getElementById('modalCard');
-      modalCard?.querySelectorAll('[data-close-modal]').forEach((btn) => {
-        btn.addEventListener('click', closeModal);
-      });
-      document.getElementById('markAllNewsReadBtn')?.addEventListener('click', () => {
-        markLastSeenNow();
-        updateNewsBadgeUI();
-        closeModal();
-        showToast('새소식을 모두 읽음으로 표시했어요.');
-      });
-      modalCard?.querySelectorAll('[data-jump-news-book]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const bookId = btn.getAttribute('data-jump-news-book');
-          closeModal();
-          state.currentTab = 'home';
-          if (bookId && state.books.some((b) => b.id === bookId)) {
-            state.selectedBookId = bookId;
-          } else {
-            state.selectedBookId = null;
-          }
-          renderApp();
-        });
-      });
-    }
-
     function renderActiveUserBadge() {
       const activeUser = getUserById(state.activeUserId);
       const palette = getPaletteForUser(activeUser);
-      const dotEl = document.getElementById('activeUserDot');
-      const labelEl = document.getElementById('activeUserLabel');
-      const lockIconEl = document.getElementById('activeUserLockIcon');
-      const dropdownEl = document.getElementById('activeUserDropdown');
-
-      if (dotEl) {
-        dotEl.className = `w-2.5 h-2.5 rounded-full ${palette.dot}`;
+      const dot = document.getElementById('activeUserDot');
+      const label = document.getElementById('activeUserLabel');
+      const lockIcon = document.getElementById('activeUserLockIcon');
+      if (dot) {
+        dot.className = `w-2.5 h-2.5 rounded-full shrink-0 ${palette.dot}`;
       }
-      if (labelEl) {
-        labelEl.textContent = activeUser.name;
+      if (label) {
+        label.textContent = activeUser.name;
       }
-      if (lockIconEl) {
-        lockIconEl.textContent = state.isUserLocked ? '🔒' : '🔓';
-      }
-      if (dropdownEl) {
-        const usersOptionsHtml = state.users
-          .map((u) => {
-            const p = getPaletteForUser(u);
-            const isSelected = u.id === state.activeUserId;
-            return `
-              <button
-                type="button"
-                data-select-active-user="${escapeHtml(u.id)}"
-                class="w-full px-3 py-2 text-left text-xs flex items-center justify-between transition ${
-                  state.isUserLocked
-                    ? 'opacity-60 cursor-pointer hover:bg-amber-100/50'
-                    : isSelected
-                    ? 'bg-accentSoft font-bold text-accent cursor-pointer'
-                    : 'hover:bg-amber-100/70 text-ink cursor-pointer'
-                }"
-              >
-                <span class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full ${p.dot}"></span>
-                  <span>${escapeHtml(u.name)}</span>
-                </span>
-                <span>${isSelected ? '✓' : ''}</span>
-              </button>
-            `;
-          })
-          .join('');
-
-        dropdownEl.innerHTML = `
-          <div class="px-3 py-1 border-b border-amber-900/10 flex items-center justify-between gap-1">
-            <span class="text-[11px] font-bold text-muted">${
-              state.isUserLocked ? '🔒 기기 고정 중' : '🔓 변경 가능'
-            }</span>
-            ${
-              state.isUserLocked
-                ? `<button type="button" id="unlockActiveUserBtn" class="text-[11px] font-bold text-accent hover:underline cursor-pointer">잠금 해제</button>`
-                : ''
-            }
-          </div>
-          <div class="py-1">${usersOptionsHtml}</div>
-        `;
+      if (lockIcon) {
+        lockIcon.textContent = state.isUserLocked ? '🔒' : '🔓';
+        lockIcon.title = state.isUserLocked ? '이 기기에 고정됨' : '고정 해제됨';
       }
     }
 
-    function renderHomeView(container) {
-      const selectedBook = state.selectedBookId
-        ? state.books.find((b) => b.id === state.selectedBookId)
-        : null;
-      if (state.selectedBookId && !selectedBook) {
-        state.selectedBookId = null;
-      }
-      if (selectedBook) {
-        renderBookFeedView(container, selectedBook);
-      } else {
-        renderBookshelfHome(container);
-      }
-    }
+    function renderActiveUserDropdown() {
+      const dropdown = document.getElementById('activeUserDropdown');
+      if (!dropdown) return;
 
-    function renderBookshelfHome(container) {
-      const shelvesHtml = state.users
-        .map((user) => {
-          const palette = getPaletteForUser(user);
-          const isMyShelf = user.id === state.activeUserId;
-          const userBooks = state.books.filter((b) => b.ownerId === user.id);
-
-          const bookCardsHtml = userBooks
-            .map((book) => {
-              const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
-              const coverVisual = book.coverImage
-                ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(
-                    book.title
-                  )}" class="w-full h-full object-cover" />`
-                : `
-                  <div class="w-full h-full flex flex-col justify-between p-2.5 ${palette.bg} ${palette.text} book-spine-edge">
-                    <span class="text-[10px] font-bold opacity-75 truncate">${escapeHtml(
-                      user.name
-                    )}</span>
-                    <span class="font-serif text-xs font-bold leading-snug line-clamp-3">${escapeHtml(
-                      book.title
-                    )}</span>
-                    <span class="text-[10px] opacity-75 truncate">${escapeHtml(
-                      book.author || '지은이 미상'
-                    )}</span>
-                  </div>
-                `;
-
-              return `
-                <div class="relative group shrink-0 w-24">
-                  <button
-                    type="button"
-                    data-open-book="${escapeHtml(book.id)}"
-                    data-longpress-book-id="${escapeHtml(book.id)}"
-                    data-longpress-can-delete="${isMyShelf ? '1' : '0'}"
-                    style="touch-action: manipulation;"
-                    class="w-24 h-32 rounded-r-xl rounded-l-sm overflow-hidden border border-amber-900/15 shadow-sm hover:-translate-y-0.5 active:scale-95 transition text-left block bg-surface cursor-pointer select-none"
-                  >
-                    ${coverVisual}
-                  </button>
-                  <p class="mt-1.5 text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
-                  <p class="text-[11px] text-muted truncate">구절 ${entryCount}개</p>
-                </div>
-              `;
-            })
-            .join('');
-
+      const rowsHtml = state.users
+        .map((u) => {
+          const pal = getPaletteForUser(u);
+          const isSelected = u.id === state.activeUserId;
           return `
-            <section class="rounded-3xl bg-surface/90 border border-amber-900/10 p-4 shadow-2xs space-y-3">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="w-3 h-3 rounded-full ${palette.dot} shrink-0"></span>
-                  <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(
-                    user.name
-                  )}의 책장</h2>
-                  <span class="text-xs text-muted shrink-0">(${userBooks.length}권)</span>
-                </div>
-                ${
-                  isMyShelf
-                    ? `
-                  <button
-                    type="button"
-                    data-open-add-book="${escapeHtml(user.id)}"
-                    class="shrink-0 rounded-2xl bg-accentSoft hover:bg-accent/20 text-accent text-xs font-bold px-3 py-1.5 transition cursor-pointer"
-                  >
-                    + 책 추가
-                  </button>
-                `
-                    : `<span class="text-[11px] text-muted shrink-0">읽기 전용</span>`
-                }
-              </div>
-
-              <div class="pt-1">
-                <div class="flex items-end gap-3 overflow-x-auto pb-2 min-h-[144px]">
-                  ${
-                    bookCardsHtml ||
-                    `<div class="w-full py-8 text-center text-xs text-muted rounded-2xl bg-paper/70 border border-dashed border-amber-900/15">
-                      ${
-                        isMyShelf
-                          ? '아직 꽂힌 책이 없어요. 위의 "+ 책 추가"로 첫 책을 넣어보세요!'
-                          : '아직 등록된 책이 없어요.'
-                      }
-                    </div>`
-                  }
-                </div>
-                <div class="shelf-ledge"></div>
-              </div>
-            </section>
+            <button
+              type="button"
+              data-select-active-user="${escapeHtml(u.id)}"
+              class="w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-amber-100/70 transition ${
+                isSelected ? 'font-bold bg-accentSoft/70 text-accent' : 'text-ink'
+              }"
+            >
+              <span class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${pal.dot}"></span>
+                <span>${escapeHtml(u.name)}</span>
+              </span>
+              <span>${isSelected ? (state.isUserLocked ? '🔒' : '✓') : ''}</span>
+            </button>
           `;
         })
         .join('');
 
-      container.innerHTML = shelvesHtml;
-    }
-
-    function renderBookFeedView(container, book) {
-      const owner = getUserById(book.ownerId);
-      const isMyBook = canManageBook(book);
-
-      // 먼저 찍은 사진이 위, 나중에 찍은 사진이 아래로 배치되도록 오름차순 정렬
-      const bookEntries = state.entries
-        .filter((e) => e.bookId === book.id)
-        .sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
-
-      const entriesHtml =
-        bookEntries.length === 0
-          ? `
-            <div class="rounded-3xl bg-surface border border-dashed border-amber-900/15 p-8 text-center space-y-2">
-              <p class="text-2xl">📖</p>
-              <p class="text-sm font-bold text-ink">아직 기록된 구절 사진이 없어요</p>
-              <p class="text-xs text-muted">
-                ${
-                  isMyBook
-                    ? '위의 "구절 사진 찍기" 버튼을 눌러 인상 깊은 문장을 남겨보세요.'
-                    : `${escapeHtml(owner.name)}님이 아직 구절 사진을 올리지 않았어요.`
-                }
-              </p>
-            </div>
-          `
-          : bookEntries
-              .map((entry) => {
-                const author = getUserById(entry.authorId);
-                const palette = getPaletteForUser(author);
-                const canEditOrDelete = canManageEntry(entry, book);
-                const replies = Array.isArray(entry.replies) ? entry.replies : [];
-
-                const repliesHtml = replies
-                  .map((rep) => {
-                    const repAuthor = getUserById(rep.authorId);
-                    const repPalette = getPaletteForUser(repAuthor);
-                    return `
-                      <div class="rounded-2xl bg-paper px-3 py-2 border border-amber-900/10 flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                          <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border ${repPalette.badge} mr-1.5">
-                            ${escapeHtml(repAuthor.name)}
-                          </span>
-                          <span class="text-xs text-ink break-words">${escapeHtml(rep.text)}</span>
-                        </div>
-                        <span class="text-[10px] text-muted shrink-0">${escapeHtml(rep.date || '')}</span>
-                      </div>
-                    `;
-                  })
-                  .join('');
-
-                return `
-                  <article class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="flex items-center gap-2 min-w-0">
-                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border ${palette.badge}">
-                          ${escapeHtml(author.name)}
-                        </span>
-                        <span class="text-xs text-muted">${escapeHtml(entry.photoDate || '')}</span>
-                      </div>
-                      ${
-                        canEditOrDelete
-                          ? `
-                        <div class="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            data-edit-entry="${escapeHtml(entry.id)}"
-                            class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-[11px] font-bold px-2.5 py-1 transition cursor-pointer"
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            data-delete-entry="${escapeHtml(entry.id)}"
-                            class="rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold px-2.5 py-1 transition cursor-pointer"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      `
-                          : ''
-                      }
-                    </div>
-
-                    <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper">
-                      <img
-                        src="${escapeHtml(entry.photoUrl)}"
-                        alt="${escapeHtml(book.title)} 구절 사진"
-                        class="w-full h-auto block"
-                      />
-                    </div>
-
-                    <div class="space-y-2 pt-1">
-                      <div class="space-y-1.5">${repliesHtml}</div>
-                      <form data-reply-form="${escapeHtml(entry.id)}" class="flex items-center gap-2 pt-1">
-                        <input
-                          type="text"
-                          name="replyText"
-                          placeholder="이 구절에 답글 남기기..."
-                          class="flex-1 min-w-0 rounded-2xl bg-paper border border-amber-900/15 px-3 py-2 text-xs text-ink placeholder:text-muted/60 focus:outline-none focus:border-accent"
-                        />
-                        <button
-                          type="submit"
-                          class="shrink-0 rounded-2xl bg-accent hover:bg-accent/90 text-white text-xs font-bold px-3.5 py-2 transition cursor-pointer"
-                        >
-                          등록
-                        </button>
-                      </form>
-                    </div>
-                  </article>
-                `;
-              })
-              .join('');
-
-      container.innerHTML = `
-        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              data-zoom-book-cover="${escapeHtml(book.id)}"
-              title="책 표지 확대 보기"
-              aria-label="${escapeHtml(book.title)} 표지 확대 보기"
-              class="w-12 h-16 rounded-lg overflow-hidden border border-amber-900/15 shrink-0 bg-amber-100/60 flex items-center justify-center hover:ring-2 hover:ring-accent/50 active:scale-95 transition cursor-pointer"
-            >
-              ${
-                book.coverImage
-                  ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(
-                      book.title
-                    )}" class="w-full h-full object-cover" />`
-                  : `<span class="text-xl">📘</span>`
-              }
-            </button>
-            <div class="min-w-0">
-              <p class="text-[11px] font-bold text-accent">${escapeHtml(owner.name)}의 책장</p>
-              <h2 class="font-serif text-base font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
-              <p class="text-xs text-muted leading-snug break-words">${escapeHtml(
-                book.author || '지은이 미상'
-              )} · 구절 ${bookEntries.length}개</p>
-            </div>
-          </div>
-
-          ${
-            isMyBook
-              ? `
-            <div class="flex flex-col gap-1.5 shrink-0">
-              <button
-                type="button"
-                data-open-new-entry="${escapeHtml(book.id)}"
-                class="rounded-2xl bg-accent hover:bg-accent/90 text-white text-xs font-bold px-3 py-2 shadow-2xs transition cursor-pointer"
-              >
-                📷 구절 사진 찍기
-              </button>
-              <button
-                type="button"
-                data-edit-book-cover="${escapeHtml(book.id)}"
-                class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-[11px] font-bold px-3 py-1.5 transition cursor-pointer"
-              >
-                표지 수정
-              </button>
-            </div>
-          `
-              : `<span class="text-[11px] text-muted shrink-0">내 책장만 기록 가능</span>`
-          }
-        </section>
-
-        <section class="space-y-4">
-          ${entriesHtml}
-        </section>
+      dropdown.innerHTML = `
+        <div class="px-3 py-1 text-[11px] font-semibold text-muted border-b border-amber-900/10 flex items-center justify-between">
+          <span>기기 사용자</span>
+          <span>${state.isUserLocked ? '고정됨' : '자유전환'}</span>
+        </div>
+        ${rowsHtml}
+        <div class="border-t border-amber-900/10 mt-1 pt-1 px-2">
+          <button
+            type="button"
+            data-toggle-user-lock
+            class="w-full text-left px-2 py-1.5 rounded-xl text-[11px] font-semibold text-muted hover:bg-amber-100/70 hover:text-ink transition cursor-pointer"
+          >
+            ${state.isUserLocked ? '🔓 사용자 전환 허용하기' : '🔒 현재 사용자로 이 기기 고정'}
+          </button>
+        </div>
       `;
     }
 
-    function renderSettingsView(container) {
-      const usersListHtml = state.users
-        .map((u) => {
-          const palette = getPaletteForUser(u);
-          const isFixedCurrent = u.id === state.activeUserId;
-          return `
-            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-3 h-3 rounded-full ${palette.dot} shrink-0"></span>
-                <span class="text-sm font-bold text-ink truncate">${escapeHtml(u.name)}</span>
+    function renderNavButtons() {
+      const homeBtn = document.getElementById('navHomeBtn');
+      const settingsBtn = document.getElementById('navSettingsBtn');
+      if (!homeBtn || !settingsBtn) return;
+
+      if (state.currentTab === 'home') {
+        homeBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+        settingsBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+      } else {
+        settingsBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
+        homeBtn.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
+      }
+    }
+
+    function renderApp() {
+      renderActiveUserBadge();
+      renderActiveUserDropdown();
+      updateNewsBadgeUI();
+      renderNavButtons();
+
+      const mainContent = document.getElementById('mainContent');
+      const backBtn = document.getElementById('headerBackBtn');
+      const headerTitle = document.getElementById('headerTitle');
+      const headerSubtitle = document.getElementById('headerSubtitle');
+      if (!mainContent || !backBtn || !headerTitle || !headerSubtitle) return;
+
+      if (state.currentTab === 'settings') {
+        state.selectedBookId = null;
+        backBtn.classList.add('hidden');
+        backBtn.classList.remove('flex');
+        headerTitle.textContent = '설정';
+        headerSubtitle.textContent = '함께 쓰는 사람 · 알림 · 앱 공유';
+        renderSettingsView(mainContent);
+        return;
+      }
+
+      if (state.selectedBookId) {
+        const book = state.books.find((b) => b.id === state.selectedBookId);
+        if (book) {
+          backBtn.classList.remove('hidden');
+          backBtn.classList.add('flex');
+          headerTitle.textContent = book.title;
+          const owner = getUserById(book.ownerId);
+          headerSubtitle.textContent = `${owner.name}의 책장${book.author ? ` · ${book.author}` : ''}`;
+          renderBookFeedView(mainContent, book);
+          return;
+        }
+        state.selectedBookId = null;
+      }
+
+      backBtn.classList.add('hidden');
+      backBtn.classList.remove('flex');
+      headerTitle.textContent = '우리의 독서메모';
+      headerSubtitle.textContent = state.cloudConnected
+        ? '실시간 동기화 중 · 함께 남기는 책장'
+        : '소중한 문장과 사진을 함께 남기는 책장';
+      renderHomeView(mainContent);
+    }
+
+    function renderHomeView(container) {
+      const shelvesHtml = state.users
+        .map((user) => {
+          const palette = getPaletteForUser(user);
+          const userBooks = state.books.filter((b) => b.ownerId === user.id);
+          const isOwnerCurrentUser = user.id === state.activeUserId;
+
+          const booksGridHtml = userBooks.length
+            ? `
+              <div class="grid grid-cols-3 gap-3">
+                ${userBooks
+                  .map((book) => {
+                    const entryCount = state.entries.filter((e) => e.bookId === book.id).length;
+                    const canDeleteLongPress = canManageBook(book);
+                    const coverInner = book.coverImage
+                      ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)} 표지" class="w-full h-full object-cover" />`
+                      : `
+                        <div class="w-full h-full flex flex-col items-center justify-between p-2.5 text-center bg-gradient-to-br from-amber-50 to-orange-100/80">
+                          <span class="text-[10px] font-semibold text-accent/80 uppercase tracking-wider">BOOK</span>
+                          <span class="font-serif text-xs font-bold text-ink line-clamp-3 leading-snug">${escapeHtml(book.title)}</span>
+                          <span class="text-[10px] text-muted truncate w-full">${escapeHtml(book.author || '')}</span>
+                        </div>
+                      `;
+
+                    return `
+                      <div class="relative group flex flex-col">
+                        <button
+                          type="button"
+                          data-open-book="${escapeHtml(book.id)}"
+                          data-long-press-book="${canDeleteLongPress ? escapeHtml(book.id) : ''}"
+                          style="touch-action: manipulation;"
+                          class="w-full aspect-[3/4] rounded-r-xl rounded-l-md overflow-hidden border border-amber-900/15 bg-surface book-spine-edge hover:-translate-y-0.5 active:scale-[0.98] transition text-left cursor-pointer select-none"
+                        >
+                          ${coverInner}
+                        </button>
+                        <div class="mt-1.5 px-0.5">
+                          <p class="text-xs font-bold text-ink truncate">${escapeHtml(book.title)}</p>
+                          <p class="text-[11px] text-muted truncate">${entryCount}개의 구절</p>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join('')}
+              </div>
+            `
+            : `
+              <div class="rounded-2xl border border-dashed border-amber-900/20 bg-paper/70 py-7 px-4 text-center">
+                <p class="text-xs text-muted">아직 ${escapeHtml(user.name)}님의 책장에 꽂힌 책이 없어요.</p>
                 ${
-                  isFixedCurrent
-                    ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-accentSoft text-accent shrink-0">🔒 이 기기 고정됨</span>`
-                    : ''
+                  isOwnerCurrentUser
+                    ? `<button type="button" data-open-add-book="${escapeHtml(user.id)}" class="mt-2.5 inline-flex items-center gap-1 rounded-xl bg-accentSoft text-accent text-xs font-bold px-3 py-1.5 hover:bg-accent hover:text-white transition cursor-pointer">+ 첫 책 꽂기</button>`
+                    : `<p class="mt-1 text-[11px] text-muted/80">현재 기록 중을 ${escapeHtml(user.name)}님으로 맞추면 책을 추가할 수 있어요.</p>`
                 }
               </div>
-              <button
-                type="button"
-                data-select-active-user="${escapeHtml(u.id)}"
-                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  isFixedCurrent
-                    ? 'bg-amber-100 text-muted'
-                    : 'bg-accent hover:bg-accent/90 text-white'
-                }"
-              >
-                ${isFixedCurrent ? '고정 중' : '이 기기에 고정'}
-              </button>
-            </div>
+            `;
+
+          return `
+            <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-8 h-8 rounded-2xl ${palette.bg} ${palette.text} font-bold text-sm flex items-center justify-center shrink-0">
+                    ${escapeHtml(user.name.slice(0, 1))}
+                  </span>
+                  <div class="min-w-0">
+                    <h2 class="font-serif text-base font-bold text-ink truncate">${escapeHtml(user.name)}의 책장</h2>
+                    <p class="text-[11px] text-muted">${userBooks.length}권의 책</p>
+                  </div>
+                </div>
+
+                ${
+                  isOwnerCurrentUser
+                    ? `
+                      <button
+                        type="button"
+                        data-open-add-book="${escapeHtml(user.id)}"
+                        class="shrink-0 rounded-2xl bg-accent text-white text-xs font-bold px-3 py-2 shadow-2xs hover:opacity-95 active:scale-95 transition cursor-pointer"
+                      >
+                        + 책 추가
+                      </button>
+                    `
+                    : `
+                      <span class="shrink-0 rounded-xl bg-amber-100/70 text-muted text-[11px] font-medium px-2.5 py-1">
+                        읽기 전용
+                      </span>
+                    `
+                }
+              </div>
+
+              ${booksGridHtml}
+
+              <div class="shelf-ledge mt-2"></div>
+            </section>
           `;
         })
         .join('');
 
       container.innerHTML = `
         <div class="space-y-4">
-          <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
-            <div>
-              <h2 class="font-serif text-base font-bold text-ink">🔔 알림 및 소리 설정</h2>
-              <p class="text-xs text-muted mt-0.5">다른 사용자가 책·구절·답글을 올릴 때 소리와 알림을 받습니다.</p>
-            </div>
+          ${shelvesHtml}
+        </div>
+      `;
 
-            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
-              <div>
-                <p class="text-xs font-bold text-ink">딩동 알림음</p>
-                <p class="text-[11px] text-muted">새 활동이 들어오면 알림음을 재생합니다.</p>
-              </div>
-              <button
-                type="button"
-                id="toggleSoundAlertBtn"
-                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  state.soundAlertEnabled
-                    ? 'bg-accent text-white'
-                    : 'bg-amber-100 text-muted'
-                }"
-              >
-                ${state.soundAlertEnabled ? '켜짐' : '꺼짐'}
-              </button>
-            </div>
+      container.querySelectorAll('[data-open-add-book]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAddBookModal(btn.getAttribute('data-open-add-book'));
+        });
+      });
 
-            <div class="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3.5 py-2.5 border border-amber-900/10">
-              <div>
-                <p class="text-xs font-bold text-ink">기기 상단 알림</p>
-                <p class="text-[11px] text-muted">브라우저 알림 권한이 허용된 경우 배너로 알립니다.</p>
-              </div>
-              <button
-                type="button"
-                id="toggleBrowserNotifyBtn"
-                class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  state.browserNotifyEnabled
-                    ? 'bg-accent text-white'
-                    : 'bg-amber-100 text-muted'
-                }"
-              >
-                ${state.browserNotifyEnabled ? '허용됨' : '설정하기'}
-              </button>
-            </div>
+      const LONG_PRESS_MS = 550;
+      container.querySelectorAll('[data-open-book]').forEach((btn) => {
+        const bookId = btn.getAttribute('data-open-book');
+        const canLongPressDelete = Boolean(btn.getAttribute('data-long-press-book'));
+        let pressTimer = null;
+        let longPressTriggered = false;
+        let startX = 0;
+        let startY = 0;
 
+        const clearPressTimer = () => {
+          if (pressTimer !== null) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+          }
+          btn.classList.remove('long-press-active');
+        };
+
+        const beginPress = (clientX, clientY) => {
+          longPressTriggered = false;
+          startX = clientX;
+          startY = clientY;
+          clearPressTimer();
+          if (!canLongPressDelete) return;
+          btn.classList.add('long-press-active');
+          pressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            btn.classList.remove('long-press-active');
+            openDeleteBookModal(bookId);
+          }, LONG_PRESS_MS);
+        };
+
+        const trackMove = (clientX, clientY) => {
+          if (pressTimer === null) return;
+          if (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10) {
+            clearPressTimer();
+          }
+        };
+
+        btn.addEventListener('pointerdown', (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          beginPress(e.clientX, e.clientY);
+        });
+        btn.addEventListener('pointermove', (e) => {
+          trackMove(e.clientX, e.clientY);
+        });
+        btn.addEventListener('pointerup', () => {
+          clearPressTimer();
+        });
+        btn.addEventListener('pointercancel', () => {
+          clearPressTimer();
+        });
+        btn.addEventListener('touchstart', (e) => {
+          const touch = e.touches && e.touches[0];
+          if (touch) beginPress(touch.clientX, touch.clientY);
+        }, { passive: true });
+        btn.addEventListener('touchmove', (e) => {
+          const touch = e.touches && e.touches[0];
+          if (touch) trackMove(touch.clientX, touch.clientY);
+        }, { passive: true });
+        btn.addEventListener('touchend', () => {
+          clearPressTimer();
+        });
+        btn.addEventListener('touchcancel', () => {
+          clearPressTimer();
+        });
+        btn.addEventListener('contextmenu', (e) => {
+          if (canLongPressDelete) {
+            e.preventDefault();
+          }
+        });
+        btn.addEventListener('click', (e) => {
+          if (longPressTriggered) {
+            e.preventDefault();
+            e.stopPropagation();
+            longPressTriggered = false;
+            return;
+          }
+          state.selectedBookId = bookId;
+          renderApp();
+        });
+      });
+    }
+
+    function renderBookFeedView(container, book) {
+      const owner = getUserById(book.ownerId);
+      const bookEntries = state.entries
+        .filter((e) => e.bookId === book.id)
+        .sort((a, b) => getEntrySortTimestamp(a) - getEntrySortTimestamp(b));
+      const isBookOwner = canManageBook(book);
+
+      const coverThumbHtml = book.coverImage
+        ? `<img src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)} 표지" class="w-full h-full object-cover" />`
+        : `<div class="w-full h-full flex items-center justify-center bg-amber-100/80 text-accent font-serif font-bold text-xs p-2 text-center">${escapeHtml(book.title)}</div>`;
+
+      const entriesHtml = bookEntries.length
+        ? bookEntries
+            .map((entry) => {
+              const author = getUserById(entry.authorId);
+              const palette = getPaletteForUser(author);
+              const canEditDeleteEntry = canManageEntry(entry, book);
+              const replies = Array.isArray(entry.replies) ? entry.replies : [];
+
+              const repliesHtml = replies
+                .map((rep) => {
+                  const repUser = getUserById(rep.authorId);
+                  const repPal = getPaletteForUser(repUser);
+                  return `
+                    <div class="flex items-start gap-2 rounded-2xl bg-paper px-3 py-2 border border-amber-900/10">
+                      <span class="mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${repPal.badge} shrink-0">
+                        ${escapeHtml(repUser.name)}
+                      </span>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs text-ink leading-relaxed break-words">${escapeHtml(rep.text)}</p>
+                        <span class="text-[10px] text-muted">${escapeHtml(rep.date || '')}</span>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('');
+
+              return `
+                <article class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${palette.badge}">
+                        <span class="w-2 h-2 rounded-full ${palette.dot}"></span>
+                        ${escapeHtml(author.name)}
+                      </span>
+                      <span class="text-xs text-muted">${escapeHtml(entry.photoDate || '')}</span>
+                    </div>
+
+                    ${
+                      canEditDeleteEntry
+                        ? `
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              data-edit-entry="${escapeHtml(entry.id)}"
+                              class="rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-2.5 py-1 transition cursor-pointer"
+                            >
+                              수정
+                            </button>
+                            <button
+                              type="button"
+                              data-delete-entry="${escapeHtml(entry.id)}"
+                              class="rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-2.5 py-1 transition cursor-pointer"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        `
+                        : ''
+                    }
+                  </div>
+
+                  <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper">
+                    <button
+                      type="button"
+                      data-zoom-entry-photo="${escapeHtml(entry.id)}"
+                      title="구절 사진 확대 보기"
+                      aria-label="${escapeHtml(book.title)} 구절 사진 확대 보기"
+                      class="w-full block text-left cursor-pointer hover:opacity-95 active:scale-[0.995] transition"
+                    >
+                      <img
+                        src="${escapeHtml(entry.photoUrl)}"
+                        alt="${escapeHtml(book.title)} 구절 사진"
+                        class="w-full h-auto block"
+                      />
+                    </button>
+                  </div>
+
+                  <div class="space-y-2 pt-1">
+                    <p class="text-xs font-bold text-muted">답글 (${replies.length})</p>
+                    <div class="space-y-1.5">
+                      ${repliesHtml}
+                    </div>
+
+                    <form data-reply-form="${escapeHtml(entry.id)}" class="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        name="replyText"
+                        placeholder="${escapeHtml(getUserById(state.activeUserId).name)}(으)로 답글 남기기..."
+                        class="flex-1 min-w-0 rounded-2xl border border-amber-900/20 bg-paper px-3 py-2 text-xs text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
+                      />
+                      <button
+                        type="submit"
+                        class="shrink-0 rounded-2xl bg-accent text-white text-xs font-bold px-3.5 py-2 hover:opacity-95 active:scale-95 transition cursor-pointer"
+                      >
+                        등록
+                      </button>
+                    </form>
+                  </div>
+                </article>
+              `;
+            })
+            .join('')
+        : `
+          <div class="rounded-3xl bg-surface border border-dashed border-amber-900/20 p-8 text-center space-y-2">
+            <p class="text-sm font-semibold text-ink">아직 기록된 구절 사진이 없어요</p>
+            <p class="text-xs text-muted">
+              ${
+                isBookOwner
+                  ? '위 버튼을 눌러 구절 사진을 찍고 형광펜으로 밑줄을 그어보세요!'
+                  : `${escapeHtml(owner.name)}님이 아직 구절 사진을 남기지 않았어요. 답글이나 책장을 구경해보세요.`
+              }
+            </p>
+          </div>
+        `;
+
+      container.innerHTML = `
+        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs">
+          <div class="flex items-start gap-3.5">
             <button
               type="button"
-              id="testNotificationSoundBtn"
-              class="w-full rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              data-zoom-book-cover="${escapeHtml(book.id)}"
+              title="책 표지 확대 보기"
+              aria-label="${escapeHtml(book.title)} 책 표지 확대 보기"
+              class="w-16 h-22 rounded-xl overflow-hidden border border-amber-900/15 book-spine-edge shrink-0 cursor-pointer hover:opacity-95 active:scale-[0.98] transition"
+            >
+              ${coverThumbHtml}
+            </button>
+            <div class="min-w-0 flex-1">
+              <span class="text-xs font-semibold text-accent block">${escapeHtml(owner.name)}의 책장</span>
+              <h2 class="font-serif text-lg font-bold text-ink leading-snug break-words">${escapeHtml(book.title)}</h2>
+              <p class="text-xs text-muted mt-0.5 break-words">${escapeHtml(book.author || '지은이 미입력')} · 구절 ${bookEntries.length}개</p>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                ${
+                  isBookOwner
+                    ? `
+                      <button
+                        type="button"
+                        data-open-entry-editor
+                        class="rounded-2xl bg-accent text-white text-xs font-bold px-3.5 py-2 shadow-2xs hover:opacity-95 active:scale-95 transition cursor-pointer"
+                      >
+                        📷 구절 사진 찍기
+                      </button>
+                      <button
+                        type="button"
+                        data-edit-cover="${escapeHtml(book.id)}"
+                        class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold px-3 py-2 transition cursor-pointer"
+                      >
+                        표지 수정
+                      </button>
+                    `
+                    : `
+                      <span class="rounded-2xl bg-amber-100/70 text-muted text-xs font-medium px-3 py-1.5">
+                        ${escapeHtml(owner.name)}님 책장 (구절 추가는 ${escapeHtml(owner.name)}님만 가능)
+                      </span>
+                    `
+                }
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-4">
+          ${entriesHtml}
+        </section>
+      `;
+
+      container.querySelector('[data-zoom-book-cover]')?.addEventListener('click', () => {
+        openBookCoverZoomModal(book.id);
+      });
+
+      container.querySelectorAll('[data-zoom-entry-photo]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openEntryPhotoZoomModal(btn.getAttribute('data-zoom-entry-photo'));
+        });
+      });
+
+      const addEntryBtn = container.querySelector('[data-open-entry-editor]');
+      if (addEntryBtn) {
+        addEntryBtn.addEventListener('click', () => openEntryEditorModal(book, null));
+      }
+
+      const editCoverBtn = container.querySelector('[data-edit-cover]');
+      if (editCoverBtn) {
+        editCoverBtn.addEventListener('click', () => openEditBookCoverModal(book.id));
+      }
+
+      container.querySelectorAll('[data-edit-entry]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const entry = state.entries.find((e) => e.id === btn.getAttribute('data-edit-entry'));
+          if (entry) openEntryEditorModal(book, entry);
+        });
+      });
+
+      container.querySelectorAll('[data-delete-entry]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openDeleteEntryModal(btn.getAttribute('data-delete-entry'));
+        });
+      });
+    }
+
+    function renderSettingsView(container) {
+      const currentFixedUser = getUserById(state.activeUserId);
+      const shareUrl = getCleanShareUrl();
+
+      const usersListHtml = state.users
+        .map((u) => {
+          const pal = getPaletteForUser(u);
+          const isCurrent = u.id === state.activeUserId;
+          return `
+            <div class="flex items-center justify-between gap-2 rounded-2xl border border-amber-900/10 bg-paper px-3.5 py-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-3 h-3 rounded-full ${pal.dot} shrink-0"></span>
+                <span class="text-sm font-bold text-ink truncate">${escapeHtml(u.name)}</span>
+                ${
+                  isCurrent
+                    ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-accentSoft text-accent">${state.isUserLocked ? '이 기기 고정됨' : '선택됨'}</span>`
+                    : ''
+                }
+              </div>
+              <button
+                type="button"
+                data-set-active-user="${escapeHtml(u.id)}"
+                class="rounded-xl px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                  isCurrent && state.isUserLocked
+                    ? 'bg-accent text-white'
+                    : 'bg-amber-100/80 hover:bg-amber-200/80 text-ink'
+                }"
+              >
+                ${isCurrent && state.isUserLocked ? '고정됨' : '이 기기에 고정'}
+              </button>
+            </div>
+          `;
+        })
+        .join('');
+
+      const notifPerm = ('Notification' in window) ? Notification.permission : 'unsupported';
+      const notifStatusText =
+        notifPerm === 'granted'
+          ? '기기 알림 권한 허용됨'
+          : notifPerm === 'denied'
+          ? '브라우저에서 알림이 차단됨'
+          : '알림 권한 요청 필요';
+
+      container.innerHTML = `
+        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
+          <div>
+            <h2 class="font-serif text-base font-bold text-ink">알림 및 소리 설정</h2>
+            <p class="text-xs text-muted">다른 사람이 책이나 구절, 답글을 남길 때 알림을 받습니다.</p>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-amber-900/10 bg-paper px-3.5 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-ink">딩동 알림음</p>
+              <p class="text-xs text-muted">새 기록이나 답글이 도착하면 부드러운 차임벨을 울립니다.</p>
+            </div>
+            <button
+              type="button"
+              id="toggleSoundAlertBtn"
+              class="shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                state.soundAlertEnabled
+                  ? 'bg-accent text-white'
+                  : 'bg-amber-100/80 text-muted'
+              }"
+            >
+              ${state.soundAlertEnabled ? '켜짐' : '꺼짐'}
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-amber-900/10 bg-paper px-3.5 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-ink">기기 상단 알림</p>
+              <p class="text-xs text-muted">${escapeHtml(notifStatusText)}</p>
+            </div>
+            <button
+              type="button"
+              id="toggleBrowserNotifyBtn"
+              class="shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                state.browserNotifyEnabled
+                  ? 'bg-accent text-white'
+                  : 'bg-amber-100/80 text-muted'
+              }"
+            >
+              ${state.browserNotifyEnabled ? '켜짐' : '꺼짐'}
+            </button>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="button"
+              id="testSoundBtn"
+              class="rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold px-3.5 py-2 transition cursor-pointer"
             >
               🔔 알림음 테스트
             </button>
-          </section>
+          </div>
+        </section>
 
-          <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
-            <div>
-              <h2 class="font-serif text-base font-bold text-ink">🔗 책장 공유하기</h2>
-              <p class="text-xs text-muted mt-0.5">함께 기록할 분들에게 공용 책장 링크를 복사해 보내세요.</p>
-            </div>
+        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
+          <div>
+            <h2 class="font-serif text-base font-bold text-ink">앱 공유하기</h2>
+            <p class="text-xs text-muted">함께 쓸 사람에게 앱 주소를 공유하세요.</p>
+          </div>
+
+          <div class="rounded-2xl border border-amber-900/10 bg-paper p-3 space-y-2.5">
+            <p class="text-xs text-muted break-all select-all">${escapeHtml(shareUrl)}</p>
             <button
               type="button"
               id="copyShareLinkBtn"
-              class="w-full rounded-2xl bg-accentSoft hover:bg-accent/20 text-accent text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              class="w-full rounded-2xl bg-accent text-white text-xs font-bold py-2.5 shadow-2xs hover:opacity-95 active:scale-[0.99] transition cursor-pointer"
             >
               📋 공유 링크 복사하기
             </button>
-          </section>
+          </div>
+        </section>
 
-          <section class="rounded-3xl bg-surface p-4 shadow-xs border border-amber-900/10 space-y-3">
+        <section class="rounded-3xl bg-surface border border-amber-900/10 p-4 shadow-2xs space-y-3">
+          <div class="flex items-center justify-between gap-2">
             <div>
-              <h2 class="font-serif text-base font-bold text-ink">👥 함께 쓰는 사람들</h2>
-              <p class="text-xs text-muted mt-0.5">내 기기 사용자를 고정하면 앱을 다시 열어도 계속 유지됩니다.</p>
+              <h2 class="font-serif text-base font-bold text-ink">함께 쓰는 사람들</h2>
+              <p class="text-xs text-muted">
+                현재 이 기기는 <strong class="text-ink">${escapeHtml(currentFixedUser.name)}</strong>님으로 ${state.isUserLocked ? '고정되어 있어요.' : '선택되어 있어요.'}
+              </p>
             </div>
+            <button
+              type="button"
+              id="toggleSettingsUserLockBtn"
+              class="shrink-0 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold px-2.5 py-1.5 transition cursor-pointer"
+            >
+              ${state.isUserLocked ? '🔒 고정됨' : '🔓 해제됨'}
+            </button>
+          </div>
 
-            <div class="space-y-2.5">
-              ${usersListHtml}
-            </div>
+          <div class="space-y-2">
+            ${usersListHtml}
+          </div>
 
-            <form id="addUserForm" class="pt-2 border-t border-amber-900/10 flex items-center gap-2">
-              <input
-                type="text"
-                name="newUserName"
-                maxlength="12"
-                placeholder="새 사용자 이름 (예: 민지)"
-                class="flex-1 min-w-0 rounded-2xl bg-paper border border-amber-900/15 px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-accent"
-                required
-              />
-              <button
-                type="submit"
-                class="shrink-0 rounded-2xl bg-accent hover:bg-accent/90 active:scale-95 text-white text-xs font-semibold px-4 py-2.5 shadow-xs transition"
-              >
-                + 추가
-              </button>
-            </form>
-          </section>
-        </div>
+          <form id="addUserForm" class="flex items-center gap-2 pt-2">
+            <input
+              type="text"
+              name="newUserName"
+              placeholder="새 사용자 이름 입력"
+              class="flex-1 min-w-0 rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2 text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              class="shrink-0 rounded-2xl bg-accent text-white text-xs font-bold px-4 py-2.5 hover:opacity-95 active:scale-95 transition cursor-pointer"
+            >
+              추가
+            </button>
+          </form>
+        </section>
       `;
 
       document.getElementById('toggleSoundAlertBtn')?.addEventListener('click', () => {
         state.soundAlertEnabled = !state.soundAlertEnabled;
-        localStorage.setItem('readingmemo_sound_alert', String(state.soundAlertEnabled));
+        try {
+          localStorage.setItem('readingmemo_sound_alert', String(state.soundAlertEnabled));
+        } catch (e) {}
         renderApp();
-        if (state.soundAlertEnabled) {
-          playNotificationChime();
-          showToast('딩동 알림음이 켜졌습니다.');
-        } else {
-          showToast('알림음이 꺼졌습니다.');
-        }
+        showToast(state.soundAlertEnabled ? '딩동 알림음이 켜졌습니다.' : '딩동 알림음이 꺼졌습니다.');
       });
 
       document.getElementById('toggleBrowserNotifyBtn')?.addEventListener('click', async () => {
-        if (!('Notification' in window)) {
-          showToast('이 브라우저에서는 시스템 알림을 지원하지 않습니다.');
-          return;
-        }
-        if (state.browserNotifyEnabled) {
+        if (!state.browserNotifyEnabled) {
+          if (!('Notification' in window)) {
+            showToast('이 기기/브라우저는 기기 알림을 지원하지 않습니다.');
+            return;
+          }
+          if (Notification.permission === 'default') {
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') {
+              showToast('알림 권한이 허용되지 않았습니다.');
+              return;
+            }
+          } else if (Notification.permission === 'denied') {
+            showToast('브라우저 설정에서 알림 차단을 해제해주세요.');
+            return;
+          }
+          state.browserNotifyEnabled = true;
+          try {
+            localStorage.setItem('readingmemo_browser_notify', 'true');
+          } catch (e) {}
+          renderApp();
+          triggerBrowserNotification('우리의 독서메모', '기기 상단 알림이 활성화되었습니다.');
+          showToast('기기 상단 알림이 켜졌습니다.');
+        } else {
           state.browserNotifyEnabled = false;
-          localStorage.setItem('readingmemo_browser_notify', 'false');
+          try {
+            localStorage.setItem('readingmemo_browser_notify', 'false');
+          } catch (e) {}
           renderApp();
           showToast('기기 상단 알림이 꺼졌습니다.');
-          return;
-        }
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          state.browserNotifyEnabled = true;
-          localStorage.setItem('readingmemo_browser_notify', 'true');
-          renderApp();
-          showToast('기기 상단 알림이 허용되었습니다.');
-        } else {
-          showToast('브라우저 설정에서 알림 권한을 허용해주세요.');
         }
       });
 
-      document.getElementById('testNotificationSoundBtn')?.addEventListener('click', () => {
+      document.getElementById('testSoundBtn')?.addEventListener('click', () => {
         const prev = state.soundAlertEnabled;
         state.soundAlertEnabled = true;
         playNotificationChime();
         state.soundAlertEnabled = prev;
-        showToast('🔔 딩동! 새 구절이나 답글이 오면 이 소리가 울려요.');
+        showToast('🔔 알림음 테스트를 재생했습니다.');
       });
 
-      document.getElementById('copyShareLinkBtn')?.addEventListener('click', () => {
-        const shareUrlObj = new URL(window.location.href);
-        shareUrlObj.searchParams.delete('user');
-        const cleanShareUrl = shareUrlObj.toString();
-
-        let copied = false;
-        try {
-          const tempInput = document.createElement('input');
-          tempInput.value = cleanShareUrl;
-          document.body.appendChild(tempInput);
-          tempInput.select();
-          tempInput.setSelectionRange(0, tempInput.value.length);
-          copied = document.execCommand('copy');
-          document.body.removeChild(tempInput);
-        } catch (err) {
-          copied = false;
-        }
-
-        if (copied) {
-          showToast('공유 링크가 복사되었습니다.');
+      document.getElementById('copyShareLinkBtn')?.addEventListener('click', async () => {
+        const ok = await copyTextToClipboard(shareUrl);
+        if (ok) {
+          showToast('공유 링크가 복사되었습니다!');
         } else {
-          showToast(`복사할 주소: ${cleanShareUrl}`);
+          showToast('링크를 길게 눌러 직접 복사해주세요.');
         }
+      });
+
+      document.getElementById('toggleSettingsUserLockBtn')?.addEventListener('click', () => {
+        setFixedActiveUser(state.activeUserId, !state.isUserLocked);
+        renderApp();
+        showToast(
+          state.isUserLocked
+            ? `이 기기를 "${getUserById(state.activeUserId).name}"님으로 고정했습니다.`
+            : '기기 사용자 고정을 해제했습니다.'
+        );
+      });
+
+      container.querySelectorAll('[data-set-active-user]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.getAttribute('data-set-active-user');
+          setFixedActiveUser(targetId, true);
+          renderApp();
+          showToast(`이 기기를 "${getUserById(targetId).name}"님으로 고정했습니다.`);
+        });
       });
 
       const addUserForm = document.getElementById('addUserForm');
@@ -1711,65 +2009,7 @@
       }
     }
 
-    function renderApp() {
-      const mainContent = document.getElementById('mainContent');
-      const navHomeBtn = document.getElementById('navHomeBtn');
-      const navSettingsBtn = document.getElementById('navSettingsBtn');
-      const backBtn = document.getElementById('headerBackBtn');
-      const headerTitle = document.getElementById('headerTitle');
-      const headerSubtitle = document.getElementById('headerSubtitle');
-
-      if (!mainContent) return;
-
-      renderActiveUserBadge();
-      updateNewsBadgeUI();
-
-      if (state.currentTab === 'settings') {
-        navSettingsBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-        navHomeBtn.className =
-          'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-        backBtn.classList.add('hidden');
-        backBtn.classList.remove('flex');
-        headerTitle.textContent = '설정';
-        headerSubtitle.textContent = '알림 · 공유 · 기기 사용자 고정';
-        renderSettingsView(mainContent);
-        return;
-      }
-
-      navHomeBtn.className =
-        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-accent text-white shadow-sm';
-      navSettingsBtn.className =
-        'flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-sm font-semibold transition bg-amber-100/60 text-muted hover:bg-amber-200/60';
-
-      const selectedBook = state.selectedBookId
-        ? state.books.find((b) => b.id === state.selectedBookId)
-        : null;
-
-      if (selectedBook) {
-        backBtn.classList.remove('hidden');
-        backBtn.classList.add('flex');
-        headerTitle.textContent = selectedBook.title;
-        const owner = getUserById(selectedBook.ownerId);
-        headerSubtitle.textContent = `${owner.name}의 책장 · 구절 기록`;
-        renderBookFeedView(mainContent, selectedBook);
-        return;
-      }
-
-      backBtn.classList.add('hidden');
-      backBtn.classList.remove('flex');
-      headerTitle.textContent = '우리의 독서메모';
-      headerSubtitle.textContent = state.cloudConnected
-        ? '실시간 동기화 중 · 함께 남기는 책장'
-        : '소중한 문장과 사진을 함께 남기는 책장';
-      renderHomeView(mainContent);
-    }
-
     function openAddBookModal(ownerId) {
-      if (ownerId !== state.activeUserId) {
-        showToast('본인의 책장에만 책을 추가할 수 있어요.');
-        return;
-      }
       const owner = getUserById(ownerId);
       let tempCoverUrl = '';
 
@@ -1777,87 +2017,110 @@
         <div class="flex items-center justify-between">
           <div>
             <span class="text-xs font-semibold text-accent">${escapeHtml(owner.name)}의 책장</span>
-            <h3 class="font-serif text-lg font-bold text-ink">새 책 꽂기</h3>
+            <h3 class="font-serif text-lg font-bold text-ink">새 책 추가</h3>
           </div>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center cursor-pointer">×</button>
         </div>
 
         <form id="addBookForm" class="space-y-3.5">
           <div>
-            <label class="block text-xs font-bold text-ink mb-1">책 제목 <span class="text-accent">*</span></label>
+            <label class="block text-xs font-bold text-ink mb-1">책 제목 *</label>
             <input
               type="text"
               name="title"
-              placeholder="예: 어린 왕자"
-              class="w-full rounded-2xl bg-paper border border-amber-900/15 px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
               required
+              placeholder="예: 어린 왕자"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-ink mb-1">지은이 <span class="text-muted font-normal">(선택)</span></label>
+            <label class="block text-xs font-bold text-ink mb-1">지은이</label>
             <input
               type="text"
               name="author"
-              placeholder="예: 앙투안 드 생텍쥐페리"
-              class="w-full rounded-2xl bg-paper border border-amber-900/15 px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
+              placeholder="예: 생텍쥐페리"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-ink mb-1.5">책 표지 사진 <span class="text-muted font-normal">(선택)</span></label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="cursor-pointer rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold py-2.5 px-3 text-center transition">
+          <div class="space-y-2">
+            <label class="block text-xs font-bold text-ink">책 표지 사진 (선택)</label>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                data-start-camera
+                class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              >
                 📷 카메라로 찍기
-                <input type="file" accept="image/*" capture="environment" data-native-camera-input class="hidden" />
-              </label>
-              <label class="cursor-pointer rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold py-2.5 px-3 text-center transition">
+              </button>
+              <button
+                type="button"
+                data-pick-file
+                class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+              >
                 🖼️ 사진 선택
-                <input type="file" accept="image/*" data-file-input class="hidden" />
-              </label>
+              </button>
+              <input type="file" accept="image/*" data-file-input class="hidden" />
             </div>
 
-            <div id="coverPreviewBox" class="hidden mt-3 flex items-center gap-3 rounded-2xl bg-paper p-2.5 border border-amber-900/10">
-              <img id="coverPreviewImg" src="" alt="표지 미리보기" class="w-12 h-16 rounded-lg object-cover border border-amber-900/15" />
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-ink">표지 이미지 준비됨</p>
-                <button type="button" id="clearCoverBtn" class="text-[11px] text-red-600 font-semibold mt-0.5">표지 지우기</button>
+            <div data-camera-box class="hidden space-y-2 rounded-2xl border border-amber-900/20 bg-black p-2.5">
+              <video data-camera-video autoplay playsinline class="w-full rounded-xl max-h-56 object-cover"></video>
+              <div class="flex items-center gap-2">
+                <button type="button" data-capture-photo-btn class="flex-1 rounded-xl bg-accent text-white text-xs font-bold py-2 cursor-pointer">촬영하기</button>
+                <button type="button" data-stop-camera-btn class="rounded-xl bg-white/20 text-white text-xs font-semibold px-3 py-2 cursor-pointer">닫기</button>
               </div>
+            </div>
+
+            <div data-cover-preview class="hidden rounded-2xl overflow-hidden border border-amber-900/15 bg-paper p-2">
+              <img data-cover-preview-img src="" alt="표지 미리보기" class="w-28 h-36 object-cover rounded-xl mx-auto" />
             </div>
           </div>
 
-          <div class="pt-2 flex items-center gap-2">
-            <button type="button" data-close-modal class="flex-1 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold py-2.5">취소</button>
-            <button type="submit" class="flex-1 rounded-2xl bg-accent text-white text-sm font-bold py-2.5 shadow-sm">책장에 넣기</button>
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
+            <button type="submit" class="rounded-2xl bg-accent text-white text-xs font-bold px-5 py-2.5 shadow-sm cursor-pointer">책장에 넣기</button>
           </div>
         </form>
       `);
 
       const modalCard = document.getElementById('modalCard');
-      const previewBox = document.getElementById('coverPreviewBox');
-      const previewImg = document.getElementById('coverPreviewImg');
+      const camHelper = createPhotoCaptureController(modalCard);
 
-      const camHelper = attachNativeCameraAndFileInputs(
-        modalCard,
-        (dataUrl) => {
-          tempCoverUrl = dataUrl;
-          previewImg.src = dataUrl;
-          previewBox.classList.remove('hidden');
-        },
-        900
-      );
-
-      document.getElementById('clearCoverBtn').addEventListener('click', () => {
-        tempCoverUrl = '';
-        previewImg.src = '';
-        previewBox.classList.add('hidden');
-      });
+      const applyCoverPreview = (dataUrl) => {
+        tempCoverUrl = dataUrl;
+        const box = modalCard.querySelector('[data-cover-preview]');
+        const img = modalCard.querySelector('[data-cover-preview-img]');
+        if (box && img && dataUrl) {
+          img.src = dataUrl;
+          box.classList.remove('hidden');
+        }
+      };
 
       modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
         btn.addEventListener('click', () => {
           camHelper.stopStream();
           closeModal();
         });
+      });
+
+      modalCard.querySelector('[data-start-camera]')?.addEventListener('click', () => {
+        camHelper.startStream(applyCoverPreview);
+      });
+
+      const fileInput = modalCard.querySelector('[data-file-input]');
+      modalCard.querySelector('[data-pick-file]')?.addEventListener('click', () => {
+        fileInput?.click();
+      });
+      fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          applyCoverPreview(dataUrl);
+        } catch (err) {
+          showToast(err.message || '이미지를 불러오지 못했습니다.');
+        }
       });
 
       document.getElementById('addBookForm').addEventListener('submit', async (e) => {
@@ -1871,7 +2134,7 @@
           return;
         }
         const compressedCover = tempCoverUrl
-          ? await compressImageDataUrl(tempCoverUrl, 800, 0.82)
+          ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
           : '';
         const newBook = {
           id: `book-${Date.now()}`,
@@ -1883,7 +2146,6 @@
         };
         knownBookIds.add(newBook.id);
         state.books.push(newBook);
-        markLastSeenNow();
         closeModal();
         renderApp();
         await syncSaveBook(newBook);
@@ -1895,26 +2157,25 @@
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
       if (!canManageBook(book)) {
-        showToast('본인의 책장에 있는 책만 삭제할 수 있어요.');
+        showToast('본인 책장의 책만 삭제할 수 있습니다.');
         return;
       }
-      const entryCount = state.entries.filter((e) => e.bookId === bookId).length;
 
       openModal(`
-        <div class="space-y-3 text-center">
-          <div class="text-3xl">🗑️</div>
-          <h3 class="font-serif text-lg font-bold text-ink">책을 책장에서 뺄까요?</h3>
+        <div class="space-y-2">
+          <h3 class="font-serif text-lg font-bold text-ink">책을 삭제할까요?</h3>
           <p class="text-xs text-muted leading-relaxed">
-            <b>"${escapeHtml(book.title)}"</b> 책과 안에 담긴 구절 사진 <b>${entryCount}개</b>가 함께 삭제됩니다.
+            <strong class="text-ink">"${escapeHtml(book.title)}"</strong> 책과 이 책에 기록된 모든 구절 사진 및 답글이 함께 삭제됩니다.
           </p>
-          <div class="pt-2 flex items-center gap-2">
-            <button type="button" id="cancelDeleteBookBtn" class="flex-1 rounded-2xl bg-amber-100/80 text-ink text-sm font-semibold py-2.5">취소</button>
-            <button type="button" id="confirmDeleteBookBtn" class="flex-1 rounded-2xl bg-red-600 text-white text-sm font-bold py-2.5">삭제하기</button>
-          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
+          <button type="button" id="confirmDeleteBookBtn" class="rounded-2xl bg-rose-600 text-white text-xs font-bold px-4 py-2.5 cursor-pointer">삭제하기</button>
         </div>
       `);
 
-      document.getElementById('cancelDeleteBookBtn').addEventListener('click', closeModal);
+      document.getElementById('modalCard').querySelector('[data-close-modal]')?.addEventListener('click', closeModal);
       document.getElementById('confirmDeleteBookBtn').addEventListener('click', async () => {
         const relatedEntryIds = state.entries
           .filter((e) => e.bookId === bookId)
@@ -1935,66 +2196,71 @@
       const book = state.books.find((b) => b.id === bookId);
       if (!book) return;
       if (!canManageBook(book)) {
-        showToast('본인의 책장에 있는 책만 표지를 수정할 수 있어요.');
+        showToast('본인 책장의 책 표지만 수정할 수 있습니다.');
         return;
       }
+
       let tempCoverUrl = book.coverImage || '';
 
       openModal(`
         <div class="flex items-center justify-between">
           <div>
             <span class="text-xs font-semibold text-accent">${escapeHtml(book.title)}</span>
-            <h3 class="font-serif text-lg font-bold text-ink">책 표지 사진 수정</h3>
+            <h3 class="font-serif text-lg font-bold text-ink">책 표지 수정</h3>
           </div>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center cursor-pointer">×</button>
         </div>
 
         <form id="editBookCoverForm" class="space-y-3.5">
-          <div class="grid grid-cols-2 gap-2">
-            <label class="cursor-pointer rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold py-2.5 px-3 text-center transition">
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-start-camera
+              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+            >
               📷 카메라로 찍기
-              <input type="file" accept="image/*" capture="environment" data-native-camera-input class="hidden" />
-            </label>
-            <label class="cursor-pointer rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-semibold py-2.5 px-3 text-center transition">
+            </button>
+            <button
+              type="button"
+              data-pick-file
+              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+            >
               🖼️ 사진 선택
-              <input type="file" accept="image/*" data-file-input class="hidden" />
-            </label>
+            </button>
+            <input type="file" accept="image/*" data-file-input class="hidden" />
           </div>
 
-          <div id="editCoverPreviewBox" class="${tempCoverUrl ? '' : 'hidden'} flex items-center gap-3 rounded-2xl bg-paper p-2.5 border border-amber-900/10">
-            <img id="editCoverPreviewImg" src="${escapeHtml(tempCoverUrl)}" alt="표지 미리보기" class="w-14 h-20 rounded-lg object-cover border border-amber-900/15" />
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-semibold text-ink">표지 이미지 미리보기</p>
-              <button type="button" id="clearEditCoverBtn" class="text-[11px] text-red-600 font-semibold mt-0.5">표지 사진 제거 (기본 표지 사용)</button>
+          <div data-camera-box class="hidden space-y-2 rounded-2xl border border-amber-900/20 bg-black p-2.5">
+            <video data-camera-video autoplay playsinline class="w-full rounded-xl max-h-56 object-cover"></video>
+            <div class="flex items-center gap-2">
+              <button type="button" data-capture-photo-btn class="flex-1 rounded-xl bg-accent text-white text-xs font-bold py-2 cursor-pointer">촬영하기</button>
+              <button type="button" data-stop-camera-btn class="rounded-xl bg-white/20 text-white text-xs font-semibold px-3 py-2 cursor-pointer">닫기</button>
             </div>
           </div>
 
-          <div class="pt-2 flex items-center gap-2">
-            <button type="button" data-close-modal class="flex-1 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold py-2.5">취소</button>
-            <button type="submit" class="flex-1 rounded-2xl bg-accent text-white text-sm font-bold py-2.5 shadow-sm">표지 저장</button>
+          <div data-cover-preview class="${tempCoverUrl ? '' : 'hidden'} rounded-2xl overflow-hidden border border-amber-900/15 bg-paper p-2">
+            <img data-cover-preview-img src="${escapeHtml(tempCoverUrl)}" alt="표지 미리보기" class="w-28 h-36 object-cover rounded-xl mx-auto" />
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
+            <button type="submit" class="rounded-2xl bg-accent text-white text-xs font-bold px-5 py-2.5 shadow-sm cursor-pointer">저장하기</button>
           </div>
         </form>
       `);
 
       const modalCard = document.getElementById('modalCard');
-      const previewBox = document.getElementById('editCoverPreviewBox');
-      const previewImg = document.getElementById('editCoverPreviewImg');
+      const camHelper = createPhotoCaptureController(modalCard);
 
-      const camHelper = attachNativeCameraAndFileInputs(
-        modalCard,
-        (dataUrl) => {
-          tempCoverUrl = dataUrl;
-          previewImg.src = dataUrl;
-          previewBox.classList.remove('hidden');
-        },
-        900
-      );
-
-      document.getElementById('clearEditCoverBtn').addEventListener('click', () => {
-        tempCoverUrl = '';
-        previewImg.src = '';
-        previewBox.classList.add('hidden');
-      });
+      const applyCoverPreview = (dataUrl) => {
+        tempCoverUrl = dataUrl;
+        const box = modalCard.querySelector('[data-cover-preview]');
+        const img = modalCard.querySelector('[data-cover-preview-img]');
+        if (box && img && dataUrl) {
+          img.src = dataUrl;
+          box.classList.remove('hidden');
+        }
+      };
 
       modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -2003,11 +2269,30 @@
         });
       });
 
+      modalCard.querySelector('[data-start-camera]')?.addEventListener('click', () => {
+        camHelper.startStream(applyCoverPreview);
+      });
+
+      const fileInput = modalCard.querySelector('[data-file-input]');
+      modalCard.querySelector('[data-pick-file]')?.addEventListener('click', () => {
+        fileInput?.click();
+      });
+      fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          applyCoverPreview(dataUrl);
+        } catch (err) {
+          showToast(err.message || '이미지를 불러오지 못했습니다.');
+        }
+      });
+
       document.getElementById('editBookCoverForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         camHelper.stopStream();
         const compressedCover = tempCoverUrl
-          ? await compressImageDataUrl(tempCoverUrl, 800, 0.82)
+          ? await compressImageDataUrl(tempCoverUrl, 640, 0.78)
           : '';
         book.coverImage = compressedCover;
         closeModal();
@@ -2017,263 +2302,252 @@
       });
     }
 
-    function openEntryEditorModal({ book, existingEntry = null }) {
+    function openEntryEditorModal(book, existingEntry = null) {
       if (!canManageBook(book)) {
-        showToast('본인의 책장에 있는 책에만 구절을 기록할 수 있어요.');
+        showToast('본인 책장의 책에만 구절 사진을 기록할 수 있습니다.');
         return;
       }
       if (existingEntry && !canManageEntry(existingEntry, book)) {
-        showToast('본인이 작성한 구절만 수정할 수 있어요.');
+        showToast('본인이 작성한 구절만 수정할 수 있습니다.');
         return;
       }
 
-      const isEdit = Boolean(existingEntry);
       let photoDataUrl = existingEntry ? existingEntry.photoUrl : '';
       let selectedColor = HIGHLIGHT_COLORS[0].hex;
-      let brushSize = 24;
       let isDrawing = false;
-      let lastPoint = null;
+      let lastX = 0;
+      let lastY = 0;
       let hasBaseImageLoaded = false;
 
-      const colorSwatchesHtml = HIGHLIGHT_COLORS.map(
-        (c, index) => `
+      const swatchesHtml = HIGHLIGHT_COLORS.map((c, idx) => {
+        const activeRing = idx === 0 ? 'ring-2 ring-ink scale-105' : 'opacity-85 hover:opacity-100';
+        return `
           <button
             type="button"
             data-hl-color="${c.hex}"
-            class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border transition ${
-              index === 0 ? 'border-ink bg-paper shadow-2xs' : 'border-amber-900/15 bg-surface'
-            }"
+            class="flex items-center gap-1.5 rounded-xl border border-amber-900/15 bg-paper px-2.5 py-1.5 text-xs font-bold text-ink transition cursor-pointer ${activeRing}"
           >
-            <span class="w-3.5 h-3.5 rounded-full border border-black/15" style="background-color: ${c.swatch};"></span>
+            <span class="w-3.5 h-3.5 rounded-full border border-black/15" style="background:${c.swatch}"></span>
             <span>${c.name}</span>
           </button>
-        `
-      ).join('');
+        `;
+      }).join('');
 
       openModal(`
         <div class="flex items-center justify-between">
           <div>
             <span class="text-xs font-semibold text-accent">${escapeHtml(book.title)}</span>
-            <h3 class="font-serif text-lg font-bold text-ink">${isEdit ? '구절 기록 수정' : '새 구절 사진 기록'}</h3>
+            <h3 class="font-serif text-lg font-bold text-ink">${existingEntry ? '구절 사진 수정' : '구절 사진 찍기'}</h3>
           </div>
-          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center">×</button>
+          <button type="button" data-close-modal class="w-8 h-8 rounded-full bg-amber-100/80 text-muted hover:text-ink flex items-center justify-center cursor-pointer">×</button>
         </div>
 
-        <form id="entryEditorForm" class="space-y-4">
-          <div class="space-y-2">
-            <label class="block text-xs font-bold text-ink">1. 구절 사진 촬영 또는 선택 <span class="text-accent">*</span></label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="cursor-pointer rounded-2xl bg-accentSoft hover:bg-accent/20 text-accent text-xs font-bold py-2.5 px-3 text-center transition">
-                📷 카메라 앱으로 바로 찍기
-                <input type="file" accept="image/*" capture="environment" data-native-camera-input class="hidden" />
-              </label>
-              <label class="cursor-pointer rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 text-center transition">
-                🖼️ 사진 파일 선택
-                <input type="file" accept="image/*" data-file-input class="hidden" />
-              </label>
+        <form id="entryEditorForm" class="space-y-3.5">
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-start-camera
+              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+            >
+              📷 카메라로 찍기
+            </button>
+            <button
+              type="button"
+              data-pick-file
+              class="flex-1 rounded-2xl bg-amber-100/80 hover:bg-amber-200/80 text-ink text-xs font-bold py-2.5 px-3 transition cursor-pointer"
+            >
+              🖼️ 사진 선택
+            </button>
+            <input type="file" accept="image/*" data-file-input class="hidden" />
+          </div>
+
+          <div data-camera-box class="hidden space-y-2 rounded-2xl border border-amber-900/20 bg-black p-2.5">
+            <video data-camera-video autoplay playsinline class="w-full rounded-xl max-h-56 object-cover"></video>
+            <div class="flex items-center gap-2">
+              <button type="button" data-capture-photo-btn class="flex-1 rounded-xl bg-accent text-white text-xs font-bold py-2 cursor-pointer">촬영하기</button>
+              <button type="button" data-stop-camera-btn class="rounded-xl bg-white/20 text-white text-xs font-semibold px-3 py-2 cursor-pointer">닫기</button>
             </div>
           </div>
 
-          <div id="canvasEditorSection" class="${photoDataUrl ? '' : 'hidden'} space-y-2.5">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-ink">2. 손가락이나 마우스로 형광펜 밑줄 긋기</label>
-              <button type="button" id="resetHighlightBtn" class="text-[11px] font-semibold text-accent hover:underline">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-bold text-ink">형광펜 밑줄 색상</span>
+              <button type="button" data-reset-canvas class="text-xs font-semibold text-accent hover:underline cursor-pointer">
                 원본 사진으로 되돌리기
               </button>
             </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-paper p-2.5 border border-amber-900/10">
-              <div class="flex flex-wrap items-center gap-1.5" id="highlightPaletteGroup">
-                ${colorSwatchesHtml}
-              </div>
-              <div class="flex items-center gap-1">
-                <button type="button" data-brush-size="16" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-surface border border-amber-900/15 text-muted">얇게</button>
-                <button type="button" data-brush-size="24" class="px-2 py-1 rounded-lg text-[11px] font-bold bg-ink text-white">보통</button>
-                <button type="button" data-brush-size="36" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-surface border border-amber-900/15 text-muted">굵게</button>
-              </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              ${swatchesHtml}
             </div>
+          </div>
 
-            <div class="rounded-2xl overflow-hidden border border-amber-900/20 bg-amber-50">
-              <canvas id="highlightCanvas" class="highlighter-canvas w-full h-auto block"></canvas>
-            </div>
+          <div class="rounded-2xl overflow-hidden border border-amber-900/15 bg-paper min-h-[180px] flex items-center justify-center">
+            <canvas data-hl-canvas class="highlighter-canvas w-full h-auto hidden"></canvas>
+            <p data-hl-placeholder class="text-xs text-muted p-6 text-center">
+              카메라로 구절을 찍거나 사진을 선택하면<br/>손가락이나 마우스로 형광펜 밑줄을 그을 수 있어요.
+            </p>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-ink mb-1">3. 사진 기록 날짜</label>
+            <label class="block text-xs font-bold text-ink mb-1">기록 날짜</label>
             <input
               type="date"
               name="photoDate"
-              value="${escapeHtml(existingEntry ? existingEntry.photoDate : getTodayDateStr())}"
-              class="w-full rounded-2xl bg-paper border border-amber-900/15 px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-accent"
-              required
+              value="${escapeHtml(existingEntry?.photoDate || getTodayDateStr())}"
+              class="w-full rounded-2xl border border-amber-900/20 bg-paper px-3.5 py-2 text-sm text-ink focus:outline-none focus:border-accent"
             />
           </div>
 
-          <div class="pt-1 flex items-center gap-2">
-            <button type="button" data-close-modal class="flex-1 rounded-2xl bg-amber-100/70 text-muted text-sm font-semibold py-2.5">취소</button>
-            <button type="submit" class="flex-1 rounded-2xl bg-accent text-white text-sm font-bold py-2.5 shadow-sm">
-              ${isEdit ? '수정 완료' : '저장하기'}
-            </button>
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
+            <button type="submit" class="rounded-2xl bg-accent text-white text-xs font-bold px-5 py-2.5 shadow-sm cursor-pointer">저장하기</button>
           </div>
         </form>
       `);
 
       const modalCard = document.getElementById('modalCard');
-      const canvasSection = document.getElementById('canvasEditorSection');
-      const canvas = document.getElementById('highlightCanvas');
+      const camHelper = createPhotoCaptureController(modalCard);
+      const canvas = modalCard.querySelector('[data-hl-canvas]');
+      const placeholder = modalCard.querySelector('[data-hl-placeholder]');
       const ctx = canvas.getContext('2d');
 
-      function loadImageOntoCanvas(dataUrl) {
-        if (!dataUrl) return;
+      const loadImageOntoCanvas = (src) => {
+        if (!src) return;
         const img = new Image();
         img.onload = () => {
-          const maxWidth = 1440;
-          const naturalW = img.naturalWidth || 1000;
-          const naturalH = img.naturalHeight || 750;
-          const scale = naturalW > maxWidth ? maxWidth / naturalW : 1;
-          canvas.width = Math.round(naturalW * scale);
-          canvas.height = Math.round(naturalH * scale);
-
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.globalAlpha = 1;
+          const maxW = 900;
+          const scale = img.width > maxW ? maxW / img.width : 1;
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           hasBaseImageLoaded = true;
-          canvasSection.classList.remove('hidden');
+          canvas.classList.remove('hidden');
+          if (placeholder) placeholder.classList.add('hidden');
         };
-        img.onerror = () => {
-          showToast('이미지를 캔버스에 불러오지 못했습니다.');
-        };
-        img.src = dataUrl;
-      }
+        img.src = src;
+      };
 
       if (photoDataUrl) {
         loadImageOntoCanvas(photoDataUrl);
       }
 
-      const camHelper = attachNativeCameraAndFileInputs(
-        modalCard,
-        (newDataUrl) => {
-          photoDataUrl = newDataUrl;
-          loadImageOntoCanvas(newDataUrl);
-        },
-        1440
-      );
+      const getCanvasCoords = (clientX, clientY) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / (rect.width || 1);
+        const scaleY = canvas.height / (rect.height || 1);
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY,
+        };
+      };
+
+      const startStroke = (clientX, clientY) => {
+        if (!hasBaseImageLoaded) return;
+        isDrawing = true;
+        const pt = getCanvasCoords(clientX, clientY);
+        lastX = pt.x;
+        lastY = pt.y;
+      };
+
+      const moveStroke = (clientX, clientY) => {
+        if (!isDrawing || !hasBaseImageLoaded) return;
+        const pt = getCanvasCoords(clientX, clientY);
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.strokeStyle = selectedColor;
+        ctx.lineWidth = Math.max(14, canvas.width * 0.028);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+        ctx.restore();
+        lastX = pt.x;
+        lastY = pt.y;
+      };
+
+      const endStroke = () => {
+        isDrawing = false;
+      };
+
+      canvas.addEventListener('mousedown', (e) => startStroke(e.clientX, e.clientY));
+      canvas.addEventListener('mousemove', (e) => moveStroke(e.clientX, e.clientY));
+      window.addEventListener('mouseup', endStroke);
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches[0]) {
+          e.preventDefault();
+          startStroke(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches[0]) {
+          e.preventDefault();
+          moveStroke(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchend', endStroke);
 
       modalCard.querySelectorAll('[data-hl-color]').forEach((btn) => {
         btn.addEventListener('click', () => {
           selectedColor = btn.getAttribute('data-hl-color');
           modalCard.querySelectorAll('[data-hl-color]').forEach((b) => {
-            b.classList.remove('border-ink', 'bg-paper', 'shadow-2xs');
-            b.classList.add('border-amber-900/15', 'bg-surface');
+            b.classList.remove('ring-2', 'ring-ink', 'scale-105');
+            b.classList.add('opacity-85');
           });
-          btn.classList.remove('border-amber-900/15', 'bg-surface');
-          btn.classList.add('border-ink', 'bg-paper', 'shadow-2xs');
+          btn.classList.add('ring-2', 'ring-ink', 'scale-105');
+          btn.classList.remove('opacity-85');
         });
       });
 
-      modalCard.querySelectorAll('[data-brush-size]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          brushSize = Number(btn.getAttribute('data-brush-size')) || 24;
-          modalCard.querySelectorAll('[data-brush-size]').forEach((b) => {
-            b.className = 'px-2 py-1 rounded-lg text-[11px] font-semibold bg-surface border border-amber-900/15 text-muted';
-          });
-          btn.className = 'px-2 py-1 rounded-lg text-[11px] font-bold bg-ink text-white';
-        });
+      modalCard.querySelector('[data-reset-canvas]')?.addEventListener('click', () => {
+        if (!photoDataUrl) {
+          showToast('되돌릴 원본 사진이 없습니다.');
+          return;
+        }
+        loadImageOntoCanvas(photoDataUrl);
+        showToast('원본 사진으로 되돌렸습니다.');
       });
 
-      document.getElementById('resetHighlightBtn').addEventListener('click', () => {
-        if (photoDataUrl) {
-          loadImageOntoCanvas(photoDataUrl);
-          showToast('형광펜 밑줄이 초기화되었습니다.');
+      const handleNewPhoto = (dataUrl) => {
+        photoDataUrl = dataUrl;
+        loadImageOntoCanvas(dataUrl);
+      };
+
+      modalCard.querySelector('[data-start-camera]')?.addEventListener('click', () => {
+        camHelper.startStream(handleNewPhoto);
+      });
+
+      const fileInput = modalCard.querySelector('[data-file-input]');
+      modalCard.querySelector('[data-pick-file]')?.addEventListener('click', () => {
+        fileInput?.click();
+      });
+      fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          handleNewPhoto(dataUrl);
+        } catch (err) {
+          showToast(err.message || '사진을 불러오지 못했습니다.');
         }
       });
-
-      function getCanvasCoords(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        return {
-          x: (clientX - rect.left) * scaleX,
-          y: (clientY - rect.top) * scaleY,
-        };
-      }
-
-      function drawHighlighterStroke(from, to) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.globalAlpha = 0.28;
-        ctx.strokeStyle = selectedColor;
-        ctx.lineWidth = brushSize * (canvas.width / 360);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      canvas.addEventListener('mousedown', (e) => {
-        if (!hasBaseImageLoaded) return;
-        isDrawing = true;
-        lastPoint = getCanvasCoords(e.clientX, e.clientY);
-        drawHighlighterStroke(lastPoint, lastPoint);
-      });
-
-      canvas.addEventListener('mousemove', (e) => {
-        if (!isDrawing || !lastPoint) return;
-        const current = getCanvasCoords(e.clientX, e.clientY);
-        drawHighlighterStroke(lastPoint, current);
-        lastPoint = current;
-      });
-
-      const endStroke = () => {
-        isDrawing = false;
-        lastPoint = null;
-      };
-      window.addEventListener('mouseup', endStroke);
-
-      canvas.addEventListener(
-        'touchstart',
-        (e) => {
-          if (!hasBaseImageLoaded || e.touches.length === 0) return;
-          e.preventDefault();
-          isDrawing = true;
-          const touch = e.touches[0];
-          lastPoint = getCanvasCoords(touch.clientX, touch.clientY);
-          drawHighlighterStroke(lastPoint, lastPoint);
-        },
-        { passive: false }
-      );
-
-      canvas.addEventListener(
-        'touchmove',
-        (e) => {
-          if (!isDrawing || !lastPoint || e.touches.length === 0) return;
-          e.preventDefault();
-          const touch = e.touches[0];
-          const current = getCanvasCoords(touch.clientX, touch.clientY);
-          drawHighlighterStroke(lastPoint, current);
-          lastPoint = current;
-        },
-        { passive: false }
-      );
-
-      canvas.addEventListener('touchend', endStroke);
 
       const cleanupObserver = new MutationObserver(() => {
         if (!document.body.contains(canvas)) {
           window.removeEventListener('mouseup', endStroke);
+          camHelper.stopStream();
           cleanupObserver.disconnect();
         }
       });
-      cleanupObserver.observe(document.getElementById('modalCard'), { childList: true });
+      cleanupObserver.observe(document.body, { childList: true, subtree: true });
 
       modalCard.querySelectorAll('[data-close-modal]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          camHelper.stopStream();
           window.removeEventListener('mouseup', endStroke);
+          camHelper.stopStream();
           cleanupObserver.disconnect();
           closeModal();
         });
@@ -2294,9 +2568,9 @@
         }
 
         const rawFinalUrl = hasBaseImageLoaded
-          ? canvas.toDataURL('image/jpeg', 0.88)
+          ? canvas.toDataURL('image/jpeg', 0.82)
           : photoDataUrl;
-        const finalPhotoUrl = await compressImageDataUrl(rawFinalUrl, 1440, 0.86);
+        const finalPhotoUrl = await compressImageDataUrl(rawFinalUrl, 960, 0.78);
 
         state.currentTab = 'home';
         state.selectedBookId = book.id;
@@ -2320,7 +2594,6 @@
           };
           knownEntryIds.add(newEntry.id);
           state.entries.push(newEntry);
-          markLastSeenNow();
           closeModal();
           renderApp();
           await syncSaveEntry(newEntry);
@@ -2333,23 +2606,25 @@
       const entry = state.entries.find((e) => e.id === entryId);
       if (!entry) return;
       if (!canManageEntry(entry)) {
-        showToast('본인이 작성한 구절만 삭제할 수 있어요.');
+        showToast('본인이 작성한 구절만 삭제할 수 있습니다.');
         return;
       }
 
       openModal(`
-        <div class="space-y-3 text-center">
-          <div class="text-3xl">🗑️</div>
-          <h3 class="font-serif text-lg font-bold text-ink">이 구절 기록을 삭제할까요?</h3>
-          <p class="text-xs text-muted leading-relaxed">삭제하면 구절 사진과 달린 답글이 모두 사라집니다.</p>
-          <div class="pt-2 flex items-center gap-2">
-            <button type="button" id="cancelDeleteEntryBtn" class="flex-1 rounded-2xl bg-amber-100/80 text-ink text-sm font-semibold py-2.5">취소</button>
-            <button type="button" id="confirmDeleteEntryBtn" class="flex-1 rounded-2xl bg-red-600 text-white text-sm font-bold py-2.5">삭제하기</button>
-          </div>
+        <div class="space-y-2">
+          <h3 class="font-serif text-lg font-bold text-ink">구절 기록을 삭제할까요?</h3>
+          <p class="text-xs text-muted leading-relaxed">
+            삭제된 구절 사진과 달린 답글은 복구할 수 없습니다.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" data-close-modal class="rounded-2xl bg-amber-100/70 text-muted text-xs font-bold px-4 py-2.5 cursor-pointer">취소</button>
+          <button type="button" id="confirmDeleteEntryBtn" class="rounded-2xl bg-rose-600 text-white text-xs font-bold px-4 py-2.5 cursor-pointer">삭제하기</button>
         </div>
       `);
 
-      document.getElementById('cancelDeleteEntryBtn').addEventListener('click', closeModal);
+      document.getElementById('modalCard').querySelector('[data-close-modal]')?.addEventListener('click', closeModal);
       document.getElementById('confirmDeleteEntryBtn').addEventListener('click', async () => {
         state.currentTab = 'home';
         state.selectedBookId = entry.bookId;
@@ -2362,68 +2637,18 @@
     }
 
     function bindGlobalEvents() {
-      let longPressTimer = null;
-      let longPressTriggered = false;
-      let pressStartX = 0;
-      let pressStartY = 0;
-
-      function clearBookLongPress() {
-        if (longPressTimer) {
-          clearTimeout(longPressTimer);
-          longPressTimer = null;
-        }
-      }
-
-      document.addEventListener('pointerdown', (e) => {
-        const bookBtn = e.target.closest('[data-longpress-book-id]');
-        clearBookLongPress();
-        longPressTriggered = false;
-
-        if (!bookBtn) return;
-        const canDelete = bookBtn.getAttribute('data-longpress-can-delete') === '1';
-        const bookId = bookBtn.getAttribute('data-longpress-book-id');
-        if (!canDelete || !bookId) return;
-
-        pressStartX = e.clientX;
-        pressStartY = e.clientY;
-
-        longPressTimer = setTimeout(() => {
-          longPressTriggered = true;
-          longPressTimer = null;
-          openDeleteBookModal(bookId);
-        }, 550);
-      });
-
-      document.addEventListener('pointermove', (e) => {
-        if (!longPressTimer) return;
-        const dx = Math.abs(e.clientX - pressStartX);
-        const dy = Math.abs(e.clientY - pressStartY);
-        if (dx > 10 || dy > 10) {
-          clearBookLongPress();
-        }
-      });
-
-      document.addEventListener('pointerup', () => {
-        clearBookLongPress();
-      });
-
-      document.addEventListener('pointercancel', () => {
-        clearBookLongPress();
-        longPressTriggered = false;
-      });
-
-      document.getElementById('navHomeBtn').addEventListener('click', () => {
+      document.getElementById('navHomeBtn')?.addEventListener('click', () => {
         state.currentTab = 'home';
+        renderApp();
+      });
+
+      document.getElementById('navSettingsBtn')?.addEventListener('click', () => {
+        state.currentTab = 'settings';
         state.selectedBookId = null;
         renderApp();
       });
 
-      document.getElementById('navSettingsBtn').addEventListener('click', () => {
-        state.currentTab = 'settings';
-        renderApp();
-      });
-
-      document.getElementById('headerBackBtn').addEventListener('click', () => {
+      document.getElementById('headerBackBtn')?.addEventListener('click', () => {
         state.selectedBookId = null;
         renderApp();
       });
@@ -2432,97 +2657,50 @@
         openNewsFeedModal();
       });
 
-      document.addEventListener('click', (e) => {
-        const badgeBtn = e.target.closest('#activeUserBadgeBtn');
-        const dropdown = document.getElementById('activeUserDropdown');
-        if (badgeBtn && dropdown) {
-          e.stopPropagation();
-          dropdown.classList.toggle('hidden');
-          return;
-        }
+      const badgeBtn = document.getElementById('activeUserBadgeBtn');
+      const dropdown = document.getElementById('activeUserDropdown');
 
-        const unlockBtn = e.target.closest('#unlockActiveUserBtn');
-        if (unlockBtn) {
-          state.isUserLocked = false;
-          try {
-            localStorage.setItem('readingmemo_user_locked', 'false');
-          } catch (err) {}
-          writeCookieValue('readingmemo_user_locked', 'false', 365);
-          renderActiveUserBadge();
-          dropdown?.classList.remove('hidden');
-          showToast('사용자 잠금이 해제되었습니다. 고정할 사용자를 선택해주세요.');
-          return;
-        }
+      badgeBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown?.classList.toggle('hidden');
+      });
 
-        const selectUserBtn = e.target.closest('[data-select-active-user]');
-        if (selectUserBtn) {
-          const userId = selectUserBtn.getAttribute('data-select-active-user');
-          setFixedActiveUser(userId, true);
-          dropdown?.classList.add('hidden');
-          renderApp();
-          const chosen = getUserById(userId);
-          showToast(`🔒 이 기기 사용자가 "${chosen.name}"님으로 고정되었습니다.`);
-          return;
-        }
-
-        if (dropdown && !dropdown.classList.contains('hidden') && !e.target.closest('#activeUserDropdown')) {
+      dropdown?.addEventListener('click', (e) => {
+        const userBtn = e.target.closest('[data-select-active-user]');
+        if (userBtn) {
+          const nextUserId = userBtn.getAttribute('data-select-active-user');
+          setFixedActiveUser(nextUserId, true);
           dropdown.classList.add('hidden');
-        }
-
-        const zoomCoverBtn = e.target.closest('[data-zoom-book-cover]');
-        if (zoomCoverBtn) {
-          openBookCoverZoomModal(zoomCoverBtn.getAttribute('data-zoom-book-cover'));
-          return;
-        }
-
-        const addBookBtn = e.target.closest('[data-open-add-book]');
-        if (addBookBtn) {
-          openAddBookModal(addBookBtn.getAttribute('data-open-add-book'));
-          return;
-        }
-
-        const openBookBtn = e.target.closest('[data-open-book]');
-        if (openBookBtn) {
-          if (longPressTriggered) {
-            longPressTriggered = false;
-            return;
-          }
-          state.selectedBookId = openBookBtn.getAttribute('data-open-book');
           renderApp();
+          showToast(`이 기기를 "${getUserById(nextUserId).name}"님으로 고정했습니다.`);
           return;
         }
 
-        const editBookCoverBtn = e.target.closest('[data-edit-book-cover]');
-        if (editBookCoverBtn) {
-          openEditBookCoverModal(editBookCoverBtn.getAttribute('data-edit-book-cover'));
-          return;
+        const lockBtn = e.target.closest('[data-toggle-user-lock]');
+        if (lockBtn) {
+          setFixedActiveUser(state.activeUserId, !state.isUserLocked);
+          dropdown.classList.add('hidden');
+          renderApp();
+          showToast(
+            state.isUserLocked
+              ? `이 기기를 "${getUserById(state.activeUserId).name}"님으로 고정했습니다.`
+              : '기기 사용자 고정을 해제했습니다.'
+          );
         }
+      });
 
-        const newEntryBtn = e.target.closest('[data-open-new-entry]');
-        if (newEntryBtn) {
-          const bookId = newEntryBtn.getAttribute('data-open-new-entry');
-          const book = state.books.find((b) => b.id === bookId);
-          if (book) {
-            openEntryEditorModal({ book, existingEntry: null });
+      document.addEventListener('click', (e) => {
+        if (!dropdown?.classList.contains('hidden')) {
+          if (!dropdown.contains(e.target) && !badgeBtn?.contains(e.target)) {
+            dropdown.classList.add('hidden');
           }
-          return;
         }
+      });
 
-        const editEntryBtn = e.target.closest('[data-edit-entry]');
-        if (editEntryBtn) {
-          const entryId = editEntryBtn.getAttribute('data-edit-entry');
-          const existingEntry = state.entries.find((item) => item.id === entryId);
-          const book = existingEntry && state.books.find((b) => b.id === existingEntry.bookId);
-          if (book && existingEntry) {
-            openEntryEditorModal({ book, existingEntry });
-          }
-          return;
-        }
-
-        const deleteEntryBtn = e.target.closest('[data-delete-entry]');
-        if (deleteEntryBtn) {
-          openDeleteEntryModal(deleteEntryBtn.getAttribute('data-delete-entry'));
-          return;
+      const backdrop = document.getElementById('modalBackdrop');
+      backdrop?.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+          closeModal();
         }
       });
 
@@ -2539,51 +2717,44 @@
         const entry = state.entries.find((item) => item.id === entryId);
         if (!entry) return;
 
-        if (!Array.isArray(entry.replies)) {
-          entry.replies = [];
-        }
-
-        const replyId = `reply-${Date.now()}`;
-        knownReplyIds.add(replyId);
-        entry.replies.push({
-          id: replyId,
+        const newReply = {
+          id: `reply-${Date.now()}`,
           authorId: state.activeUserId,
           text,
           date: getTodayDateStr(),
-          createdAt: Date.now(),
-        });
+        };
+        knownReplyIds.add(`${entry.id}:${newReply.id}`);
+        entry.replies = [...(entry.replies || []), newReply];
 
         input.value = '';
-        markLastSeenNow();
         renderApp();
         await syncUpdateEntryReplies(entry.id, entry.replies);
         showToast('답글이 등록되었습니다.');
       });
 
+      const triggerResumeRefresh = () => {
+        const now = Date.now();
+        if (now - lastResumeSyncAt < 800) return;
+        lastResumeSyncAt = now;
+        forceSyncLatestRemoteData();
+      };
+
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          markLastSeenNow();
-        } else if (document.visibilityState === 'visible') {
-          refreshViewOnResume();
+        if (document.visibilityState === 'visible') {
+          triggerResumeRefresh();
         }
+      });
+
+      window.addEventListener('pageshow', () => {
+        triggerResumeRefresh();
+      });
+
+      window.addEventListener('focus', () => {
+        triggerResumeRefresh();
       });
 
       window.addEventListener('pagehide', () => {
         markLastSeenNow();
-      });
-
-      function refreshViewOnResume() {
-        updateNewsBadgeUI();
-        renderApp();
-        forceSyncLatestRemoteData();
-      }
-
-      window.addEventListener('pageshow', () => {
-        refreshViewOnResume();
-      });
-
-      window.addEventListener('focus', () => {
-        refreshViewOnResume();
       });
     }
 
@@ -2591,7 +2762,8 @@
       await hydratePrefsFromIndexedDb();
       bindGlobalEvents();
       renderApp();
-      initRealtimeSync();
+      await initRealtimeSync();
+      await forceSyncLatestRemoteData();
     });
   </script>
 </body>
