@@ -2397,6 +2397,31 @@
       window.addEventListener('pagehide', () => {
         markLastSeenNow();
       });
+
+      function refreshViewOnResume() {
+        if (initialBooksLoaded && initialEntriesLoaded) {
+          const prevSeen = state.lastSeenAt || 0;
+          const missedMessages = collectMissedActivityMessages(prevSeen);
+          markLastSeenNow();
+          if (missedMessages.length > 0) {
+            notifyMissedActivity(missedMessages);
+          }
+        }
+        updateNewsBadgeUI();
+        renderApp();
+      }
+
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          refreshViewOnResume();
+        } else {
+          renderApp();
+        }
+      });
+
+      window.addEventListener('focus', () => {
+        renderApp();
+      });
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
